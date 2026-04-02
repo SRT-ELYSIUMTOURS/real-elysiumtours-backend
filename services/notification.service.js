@@ -2,6 +2,7 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES, NOTIFICATION_CHANNELS } = require("../utils/constants");
+const { sendSMS: hubtelSendSMS, sendWhatsApp: hubtelSendWhatsApp } = require("../utils/whatsapp.utils");
 
 module.exports = {
 	name: "notification",
@@ -322,24 +323,32 @@ module.exports = {
 		 * @returns {Promise<void>}
 		 */
 		async sendSMS(phone, message) {
-			this.logger.info(
-				`[SMS STUB] Sending SMS to ${phone}: ${message.substring(0, 80)}...`
-			);
-			// Twilio integration will replace this stub
+			this.logger.info(`[SMS] Sending to ${phone}: ${message.substring(0, 80)}...`);
+			const result = await hubtelSendSMS(phone, message);
+			if (result.success) {
+				this.logger.info(`[SMS] Sent to ${phone} via ${result.provider || "stub"}`);
+			} else {
+				this.logger.warn(`[SMS] Failed to send to ${phone}:`, result.error);
+			}
+			return result;
 		},
 
 		/**
-		 * Send a WhatsApp message (stub -- real Twilio integration later).
+		 * Send a WhatsApp message via Twilio.
 		 *
 		 * @param {String} phone - Recipient phone number
 		 * @param {String} message - Message body
-		 * @returns {Promise<void>}
+		 * @returns {Promise<Object>}
 		 */
 		async sendWhatsApp(phone, message) {
-			this.logger.info(
-				`[WhatsApp STUB] Sending WhatsApp to ${phone}: ${message.substring(0, 80)}...`
-			);
-			// Twilio integration will replace this stub
+			this.logger.info(`[WhatsApp] Sending to ${phone}: ${message.substring(0, 80)}...`);
+			const result = await hubtelSendWhatsApp(phone, message);
+			if (result.success) {
+				this.logger.info(`[WhatsApp] Sent to ${phone} via ${result.provider || "stub"}`);
+			} else {
+				this.logger.warn(`[WhatsApp] Failed to send to ${phone}:`, result.error);
+			}
+			return result;
 		},
 	},
 
