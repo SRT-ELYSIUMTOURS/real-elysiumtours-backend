@@ -26,8 +26,8 @@ module.exports = {
 			params: {
 				status: { type: "string", optional: true },
 				assignedToMe: { type: "boolean", optional: true },
-				page: { type: "number", optional: true },
-				pageSize: { type: "number", optional: true },
+				page: { type: "number", optional: true, convert: true },
+				pageSize: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { status, assignedToMe, page = 1, pageSize = 20 } = ctx.params;
@@ -215,7 +215,7 @@ module.exports = {
 				costBreakdown: "object",
 				totalPrice: "number",
 				pricePerPerson: "number",
-				marginPercent: { type: "number", optional: true },
+				marginPercent: { type: "number", optional: true, convert: true },
 				validUntil: { type: "string", optional: true },
 			},
 			async handler(ctx) {
@@ -643,7 +643,7 @@ module.exports = {
 			role: "staff",
 			params: {
 				tourRequestId: "string",
-				marginPercent: { type: "number", optional: true, default: 20 },
+				marginPercent: { type: "number", optional: true, default: 20, convert: true },
 			},
 			async handler(ctx) {
 				const { tourRequestId, marginPercent } = ctx.params;

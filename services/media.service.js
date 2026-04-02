@@ -126,7 +126,7 @@ module.exports = {
 			role: "admin",
 			params: {
 				folder: "string|optional",
-				maxResults: "number|integer|positive|optional",
+				maxResults: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				try {

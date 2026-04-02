@@ -127,7 +127,7 @@ module.exports = {
 			slaDeadline: "string|optional",
 			customerResponse: "string|optional",
 			validUntil: "string|optional",
-			revisionNumber: "number|optional",
+			revisionNumber: { type: "number", optional: true, convert: true },
 		},
 	},
 

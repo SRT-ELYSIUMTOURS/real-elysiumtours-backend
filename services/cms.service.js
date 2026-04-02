@@ -53,8 +53,8 @@ module.exports = {
 			auth: undefined,
 			params: {
 				category: "string|optional",
-				page: "number|optional",
-				pageSize: "number|optional",
+				page: { type: "number", optional: true, convert: true },
+				pageSize: { type: "number", optional: true, convert: true },
 				featured: "boolean|optional",
 			},
 			async handler(ctx) {
@@ -199,7 +199,7 @@ module.exports = {
 		listTestimonials: {
 			auth: undefined,
 			params: {
-				limit: "number|optional",
+				limit: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { limit = 10 } = ctx.params;
@@ -231,8 +231,8 @@ module.exports = {
 			auth: undefined,
 			params: {
 				category: "string|optional",
-				page: "number|optional",
-				pageSize: "number|optional",
+				page: { type: "number", optional: true, convert: true },
+				pageSize: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { category, page = 1, pageSize = 20 } = ctx.params;

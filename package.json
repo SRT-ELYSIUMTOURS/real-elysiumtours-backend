@@ -4,8 +4,8 @@
   "description": "Elysium Tours — MoleculerJS microservices backend for Ghana tour platform",
   "main": "moleculer.config.js",
   "scripts": {
-    "dev": "moleculer-runner --repl --hot services/**/*.service.js",
-    "start": "moleculer-runner services/**/*.service.js",
+    "dev": "moleculer-runner --repl --hot services/**/*.service.js services/**/*.model.js",
+    "start": "moleculer-runner services/**/*.service.js services/**/*.model.js",
     "test": "jest --coverage --forceExit --detectOpenHandles",
     "test:unit": "jest --testPathPattern=tests/unit --forceExit",
     "test:integration": "jest --testPathPattern=tests/integration --forceExit --detectOpenHandles",
@@ -16,7 +16,8 @@
     "seed:roles": "node scripts/seedScripts/seed-roles.js",
     "seed:permissions": "node scripts/seedScripts/seed-permissions.js",
     "seed:destinations": "node scripts/seedScripts/seed-destinations.js",
-    "seed:all": "npm run seed:roles && npm run seed:permissions && npm run seed:destinations",
+    "seed:users": "node scripts/seedScripts/seed-users.js",
+    "seed:all": "npm run seed:roles && npm run seed:permissions && npm run seed:destinations && npm run seed:users",
     "lint": "eslint services/ mixins/ middlewares/ utils/ config/"
   },
   "keywords": [

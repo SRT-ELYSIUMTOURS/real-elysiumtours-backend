@@ -64,8 +64,8 @@ module.exports = {
 			auth: "required",
 			role: "admin",
 			params: {
-				page: "number|optional|integer|positive",
-				pageSize: "number|optional|integer|positive|max:100",
+				page: { type: "number", optional: true, integer: true, positive: true, convert: true },
+				pageSize: { type: "number", optional: true, integer: true, positive: true, max: 100, convert: true },
 				role: "string|optional",
 				status: "string|optional",
 			},

@@ -21,7 +21,7 @@ module.exports = {
 				tourPackageId: "string|optional",
 				destinationId: "string|optional",
 				preferredDates: "object|optional",
-				groupSize: "number|optional",
+				groupSize: { type: "number", optional: true, convert: true },
 				contactPreference: "string|optional",
 				notes: "string|optional",
 			},
@@ -141,8 +141,8 @@ module.exports = {
 				tourPackageId: "string|optional",
 				destinationId: "string|optional",
 				status: "string|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { tourPackageId, destinationId, status, page, pageSize } = ctx.params;

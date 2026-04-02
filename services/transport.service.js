@@ -16,8 +16,8 @@ module.exports = {
 		listProviders: {
 			auth: undefined,
 			params: {
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { page, pageSize } = ctx.params;
@@ -70,7 +70,7 @@ module.exports = {
 				contactPerson: "string|optional",
 				phone: "string|optional",
 				email: "string|optional",
-				commissionRate: "number|optional",
+				commissionRate: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				return ctx.call(
@@ -94,7 +94,7 @@ module.exports = {
 				contactPerson: "string|optional",
 				phone: "string|optional",
 				email: "string|optional",
-				commissionRate: "number|optional",
+				commissionRate: { type: "number", optional: true, convert: true },
 				isActive: "boolean|optional",
 			},
 			async handler(ctx) {
@@ -132,9 +132,9 @@ module.exports = {
 			params: {
 				providerId: "string|optional",
 				type: "string|optional",
-				minCapacity: "number|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				minCapacity: { type: "number", optional: true, convert: true },
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { providerId, type, minCapacity, page, pageSize } = ctx.params;
@@ -204,8 +204,8 @@ module.exports = {
 				id: "string",
 				providerId: "string|optional",
 				type: "string|optional",
-				capacity: "number|optional",
-				basePricePerDay: "number|optional",
+				capacity: { type: "number", optional: true, convert: true },
+				basePricePerDay: { type: "number", optional: true, convert: true },
 				description: "string|optional",
 				isAvailable: "boolean|optional",
 			},
@@ -242,8 +242,8 @@ module.exports = {
 		estimateTransportCost: {
 			auth: undefined,
 			params: {
-				groupSize: "number|integer|positive",
-				days: "number|integer|positive",
+				groupSize: { type: "number", integer: true, positive: true, convert: true },
+				days: { type: "number", integer: true, positive: true, convert: true },
 			},
 			async handler(ctx) {
 				const { groupSize, days } = ctx.params;

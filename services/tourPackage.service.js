@@ -27,13 +27,13 @@ module.exports = {
 			params: {
 				query: "string",
 				destinationId: "string|optional",
-				minPrice: "number|optional",
-				maxPrice: "number|optional",
-				minGroupSize: "number|optional",
+				minPrice: { type: "number", optional: true, convert: true },
+				maxPrice: { type: "number", optional: true, convert: true },
+				minGroupSize: { type: "number", optional: true, convert: true },
 				sellingMode: "string|optional",
 				sortBy: { type: "enum", values: ["relevance", "price_low", "price_high", "rating", "popularity", "newest"], optional: true, default: "relevance" },
-				page: { type: "number", optional: true, default: 1 },
-				pageSize: { type: "number", optional: true, default: 10 },
+				page: { type: "number", optional: true, default: 1, convert: true },
+				pageSize: { type: "number", optional: true, default: 10, convert: true },
 			},
 			async handler(ctx) {
 				const {
@@ -125,8 +125,8 @@ module.exports = {
 				isActive: "boolean|optional",
 				status: "string|optional",
 				sellingMode: "string|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { destinationId, isActive, status, sellingMode, page, pageSize } = ctx.params;
@@ -270,8 +270,8 @@ module.exports = {
 				diningIds: "array|optional",
 				transportType: "string|optional",
 				sellingMode: "string|optional",
-				totalCapacity: "number|optional",
-				durationDays: "number|integer|positive",
+				totalCapacity: { type: "number", optional: true, convert: true },
+				durationDays: { type: "number", integer: true, positive: true, convert: true },
 				images: "array|optional",
 				highlights: "array|optional",
 				inclusions: "array|optional",
@@ -441,8 +441,8 @@ module.exports = {
 				diningIds: "array|optional",
 				transportType: "string|optional",
 				sellingMode: "string|optional",
-				totalCapacity: "number|optional",
-				durationDays: "number|integer|positive|optional",
+				totalCapacity: { type: "number", optional: true, convert: true },
+				durationDays: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				images: "array|optional",
 				highlights: "array|optional",
 				inclusions: "array|optional",
@@ -663,10 +663,10 @@ module.exports = {
 			role: "admin",
 			params: {
 				packageId: "string",
-				minGroupSize: "number|integer|positive",
-				maxGroupSize: "number|integer|positive",
-				pricePerPerson: "number|positive",
-				totalPrice: "number|optional",
+				minGroupSize: { type: "number", integer: true, positive: true, convert: true },
+				maxGroupSize: { type: "number", integer: true, positive: true, convert: true },
+				pricePerPerson: { type: "number", positive: true, convert: true },
+				totalPrice: { type: "number", optional: true, convert: true },
 				label: "string|optional",
 			},
 			async handler(ctx) {
@@ -713,10 +713,10 @@ module.exports = {
 			role: "admin",
 			params: {
 				id: "string",
-				minGroupSize: "number|integer|positive|optional",
-				maxGroupSize: "number|integer|positive|optional",
-				pricePerPerson: "number|positive|optional",
-				totalPrice: "number|optional",
+				minGroupSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				maxGroupSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pricePerPerson: { type: "number", positive: true, optional: true, convert: true },
+				totalPrice: { type: "number", optional: true, convert: true },
 				label: "string|optional",
 				isActive: "boolean|optional",
 			},
@@ -788,7 +788,7 @@ module.exports = {
 			auth: undefined,
 			params: {
 				packageId: "string",
-				groupSize: "number|integer|positive",
+				groupSize: { type: "number", integer: true, positive: true, convert: true },
 			},
 			async handler(ctx) {
 				const { packageId, groupSize } = ctx.params;
@@ -869,7 +869,7 @@ module.exports = {
 			auth: undefined,
 			params: {
 				packageId: "string",
-				seats: "number|integer|positive",
+				seats: { type: "number", integer: true, positive: true, convert: true },
 			},
 			async handler(ctx) {
 				const { packageId, seats } = ctx.params;
@@ -922,7 +922,7 @@ module.exports = {
 			auth: "required",
 			params: {
 				packageId: "string",
-				groupSize: "number|min:1",
+				groupSize: { type: "number", min: 1, convert: true },
 				preferredDate: "string|optional",
 			},
 			async handler(ctx) {

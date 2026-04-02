@@ -17,8 +17,8 @@ module.exports = {
 			auth: undefined,
 			params: {
 				tourPackageId: "string",
-				page: { type: "number", integer: true, positive: true, optional: true },
-				pageSize: { type: "number", integer: true, positive: true, optional: true },
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { tourPackageId } = ctx.params;

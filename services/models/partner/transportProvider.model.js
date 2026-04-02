@@ -58,7 +58,7 @@ module.exports = {
 			contactPerson: "string|optional",
 			phone: "string|optional",
 			email: "string|optional",
-			commissionRate: "number|optional",
+			commissionRate: { type: "number", optional: true, convert: true },
 			isActive: "boolean|optional",
 		},
 	},

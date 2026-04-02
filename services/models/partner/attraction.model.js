@@ -84,7 +84,7 @@ module.exports = {
 			name: "string",
 			destinationId: "string",
 			category: "string|optional",
-			entryFee: "number|optional",
+			entryFee: { type: "number", optional: true, convert: true },
 			description: "string|optional",
 			images: "array|optional",
 			isActive: "boolean|optional",

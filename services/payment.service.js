@@ -27,7 +27,7 @@ module.exports = {
 					type: "enum",
 					values: ["commitment_fee", "milestone", "full_payment"],
 				},
-				amount: { type: "number", optional: true },
+				amount: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { bookingId, paymentType, amount: milestoneAmount } = ctx.params;
@@ -357,7 +357,7 @@ module.exports = {
 			role: "admin",
 			params: {
 				paymentId: "string",
-				amount: { type: "number", optional: true },
+				amount: { type: "number", optional: true, convert: true },
 				reason: { type: "string", optional: true },
 			},
 			async handler(ctx) {
@@ -462,8 +462,8 @@ module.exports = {
 			params: {
 				bookingId: { type: "string", optional: true },
 				status: { type: "string", optional: true },
-				page: { type: "number", optional: true },
-				pageSize: { type: "number", optional: true },
+				page: { type: "number", optional: true, convert: true },
+				pageSize: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { bookingId, status, page = 1, pageSize = 20 } = ctx.params;

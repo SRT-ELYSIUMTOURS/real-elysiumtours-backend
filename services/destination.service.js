@@ -18,7 +18,7 @@ module.exports = {
 			auth: undefined,
 			params: {
 				destinationId: "string",
-				maxDistanceKm: { type: "number", optional: true, default: 15 },
+				maxDistanceKm: { type: "number", optional: true, default: 15, convert: true },
 			},
 			async handler(ctx) {
 				const dest = await ctx.call("destination.model.get", { id: ctx.params.destinationId }, { meta: ctx.meta }).catch(() => null);
@@ -65,8 +65,8 @@ module.exports = {
 			params: {
 				query: "string",
 				region: "string|optional",
-				page: "number|optional",
-				pageSize: "number|optional",
+				page: { type: "number", optional: true, convert: true },
+				pageSize: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { query, region, page = 1, pageSize = 10 } = ctx.params;
@@ -111,8 +111,8 @@ module.exports = {
 			params: {
 				region: "string|optional",
 				isActive: "boolean|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { region, isActive, page, pageSize } = ctx.params;

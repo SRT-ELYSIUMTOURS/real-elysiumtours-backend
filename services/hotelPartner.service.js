@@ -18,8 +18,8 @@ module.exports = {
 			params: {
 				lat: "number",
 				lng: "number",
-				maxDistanceKm: { type: "number", optional: true, default: 10 },
-				limit: { type: "number", optional: true, default: 20 },
+				maxDistanceKm: { type: "number", optional: true, default: 10, convert: true },
+				limit: { type: "number", optional: true, default: 20, convert: true },
 			},
 			async handler(ctx) {
 				const { lat, lng, maxDistanceKm, limit } = ctx.params;
@@ -41,8 +41,8 @@ module.exports = {
 				destinationId: "string|optional",
 				tier: "string|optional",
 				isActive: "boolean|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { destinationId, tier, isActive, page, pageSize } = ctx.params;
@@ -177,7 +177,7 @@ module.exports = {
 				name: "string",
 				destinationId: "string",
 				tier: "string",
-				commissionRate: "number|optional",
+				commissionRate: { type: "number", optional: true, convert: true },
 				contactInfo: "object|optional",
 				inventoryModel: "string|optional",
 				contractStatus: "string|optional",
@@ -229,7 +229,7 @@ module.exports = {
 				name: "string|optional",
 				destinationId: "string|optional",
 				tier: "string|optional",
-				commissionRate: "number|optional",
+				commissionRate: { type: "number", optional: true, convert: true },
 				contactInfo: "object|optional",
 				inventoryModel: "string|optional",
 				contractStatus: "string|optional",

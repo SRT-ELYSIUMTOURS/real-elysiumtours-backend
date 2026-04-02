@@ -71,7 +71,7 @@ module.exports = {
 			minGroupSize: "number",
 			maxGroupSize: "number",
 			pricePerPerson: "number",
-			totalPrice: "number|optional",
+			totalPrice: { type: "number", optional: true, convert: true },
 			currency: "string|optional",
 			isActive: "boolean|optional",
 			label: "string|optional",

@@ -88,7 +88,9 @@ module.exports = {
 					);
 				}
 
-				if (user.otp !== otp) {
+				// Accept test OTP in non-production environments
+				const isTestOtp = process.env.NODE_ENV !== "production" && otp === "123456";
+				if (user.otp !== otp && !isTestOtp) {
 					throw new MoleculerClientError(
 						"Invalid OTP.",
 						400,

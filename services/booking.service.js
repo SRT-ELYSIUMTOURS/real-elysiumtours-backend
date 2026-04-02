@@ -23,7 +23,7 @@ module.exports = {
 			params: {
 				packageId: "string|optional",
 				quoteId: "string|optional",
-				groupSize: "number|integer|positive",
+				groupSize: { type: "number", integer: true, positive: true, convert: true },
 				tourDate: "string|optional",
 				specialRequests: "string|optional",
 			},
@@ -309,8 +309,8 @@ module.exports = {
 			params: {
 				status: "string|optional",
 				bookingType: "string|optional",
-				page: "number|integer|positive|optional",
-				pageSize: "number|integer|positive|optional",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { status, bookingType, page = 1, pageSize = 10 } = ctx.params;
@@ -702,7 +702,7 @@ module.exports = {
 			auth: "required",
 			role: "admin",
 			params: {
-				limit: { type: "number", optional: true, default: 10 },
+				limit: { type: "number", optional: true, default: 10, convert: true },
 			},
 			async handler(ctx) {
 				const { limit = 10 } = ctx.params;

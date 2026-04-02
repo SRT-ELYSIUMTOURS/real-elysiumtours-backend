@@ -36,6 +36,19 @@ module.exports = {
 			},
 		},
 
+		// Global hook: coerce common query params from strings to numbers
+		onBeforeCall(ctx, route, req) {
+			const numericFields = ["page", "pageSize", "limit", "offset", "maxDistanceKm", "minPrice", "maxPrice", "minGroupSize", "numberOfPassengers", "groupSize", "commissionRate"];
+			for (const field of numericFields) {
+				if (typeof ctx.params[field] === "string" && ctx.params[field] !== "") {
+					const num = Number(ctx.params[field]);
+					if (!isNaN(num)) {
+						ctx.params[field] = num;
+					}
+				}
+			}
+		},
+
 		routes: [
 			// ─── Health Check (no auth) ───
 			{

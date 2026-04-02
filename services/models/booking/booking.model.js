@@ -140,7 +140,7 @@ module.exports = {
 			totalAmount: "number",
 			currency: "string|optional",
 			status: "string|optional",
-			commitmentFeeAmount: "number|optional",
+			commitmentFeeAmount: { type: "number", optional: true, convert: true },
 			commitmentFeePaid: "boolean|optional",
 			specialRequests: "string|optional",
 			cancellationReason: "string|optional",

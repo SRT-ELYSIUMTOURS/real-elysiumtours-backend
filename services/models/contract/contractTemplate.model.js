@@ -72,7 +72,7 @@ module.exports = {
 			name: "string",
 			title: "string",
 			body: "string",
-			version: "number|optional",
+			version: { type: "number", optional: true, convert: true },
 			variables: "array|optional",
 			cancellationClause: "string|optional",
 			availabilityClause: "string|optional",

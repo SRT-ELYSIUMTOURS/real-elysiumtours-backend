@@ -547,8 +547,8 @@ module.exports = {
 			role: "admin",
 			params: {
 				status: { type: "string", optional: true },
-				page: { type: "number", integer: true, positive: true, optional: true },
-				pageSize: { type: "number", integer: true, positive: true, optional: true },
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { status, page = 1, pageSize = 10 } = ctx.params;

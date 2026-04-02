@@ -124,7 +124,7 @@ module.exports = {
 			name: "string",
 			destinationId: "string",
 			tier: "string",
-			commissionRate: "number|optional",
+			commissionRate: { type: "number", optional: true, convert: true },
 			contactInfo: "object|optional",
 			inventoryModel: "string|optional",
 			contractStatus: "string|optional",

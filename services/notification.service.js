@@ -154,8 +154,8 @@ module.exports = {
 		listForUser: {
 			auth: "required",
 			params: {
-				page: { type: "number", integer: true, positive: true, optional: true },
-				pageSize: { type: "number", integer: true, positive: true, optional: true },
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				unreadOnly: { type: "boolean", optional: true },
 			},
 			async handler(ctx) {

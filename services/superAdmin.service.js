@@ -18,8 +18,8 @@ module.exports = {
 			params: {
 				status: { type: "string", optional: true },
 				plan: { type: "string", optional: true },
-				page: { type: "number", integer: true, positive: true, optional: true },
-				pageSize: { type: "number", integer: true, positive: true, optional: true },
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { status, plan, page, pageSize } = ctx.params;

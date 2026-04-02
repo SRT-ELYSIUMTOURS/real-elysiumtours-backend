@@ -120,7 +120,7 @@ module.exports = {
 			status: "string|optional",
 			paidAt: "string|optional",
 			metadata: "object|optional",
-			refundedAmount: "number|optional",
+			refundedAmount: { type: "number", optional: true, convert: true },
 			refundReason: "string|optional",
 		},
 	},

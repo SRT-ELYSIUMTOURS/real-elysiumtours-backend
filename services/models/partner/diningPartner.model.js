@@ -92,7 +92,7 @@ module.exports = {
 			destinationId: "string",
 			cuisineType: "string|optional",
 			tier: "string|optional",
-			commissionRate: "number|optional",
+			commissionRate: { type: "number", optional: true, convert: true },
 			contactInfo: "object|optional",
 			menuOptions: "array|optional",
 			images: "array|optional",

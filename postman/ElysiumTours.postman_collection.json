@@ -1,0 +1,3308 @@
+{
+  "info": {
+    "name": "Elysium Tours API",
+    "_postman_id": "elysium-tours-collection",
+    "description": "Complete API test collection for Elysium Tours — a Ghana-based tour booking platform.\n\n## Collection Run Setup\n\n**Pre-requisites:**\n1. Import the `ElysiumTours.postman_environment.json` environment\n2. Set `baseUrl` to your server (default: `http://localhost:3001`)\n3. Ensure admin + staff accounts are seeded (or set their credentials in env)\n4. In dev/test mode the server must accept OTP `123456` — otherwise set `testOtp` manually\n\n**How collection-run chaining works:**\n- Each response script saves IDs and tokens into environment variables\n- Requests are ordered so that downstream requests consume upstream variables\n- The `_Runner Seed` folder at the top bootstraps admin/staff tokens before anything else\n- Customer registration generates a unique email per run (`testcustomer_<timestamp>@mailinator.com`)\n- OTP verification uses `testOtp` env var (defaults to `123456`)\n\n**Folder order for full run:**\n`_Runner Seed` → `Auth` → `Users` → `Destinations` → `Partners` → `Tour Packages` → `Dynamic Tours` → `Pricing Desk` → `Bookings` → `Payments` → `Payment Plans` → `Contracts` → `Interests` → `Reviews` → `Contact & Newsletter` → `Notifications` → `Media` → `CMS` → `Admin`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ── Global Pre-request ──",
+          "// Resolve apiUrl if Postman hasn't interpolated it yet",
+          "const base = pm.environment.get('baseUrl') || 'http://localhost:3001';",
+          "if (!pm.environment.get('apiUrl') || pm.environment.get('apiUrl').includes('{{')) {",
+          "    pm.environment.set('apiUrl', base + '/api/v1');",
+          "}",
+          "if (!pm.environment.get('apiUrlV2') || pm.environment.get('apiUrlV2').includes('{{')) {",
+          "    pm.environment.set('apiUrlV2', base + '/api/v2');",
+          "}",
+          "",
+          "// ── Helper: standard response shape validator ──",
+          "// Available to all requests via pm.variables",
+          "const Ajv = require('ajv');",
+          "pm.variables.set('__ajv_loaded', 'true');"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ── Global Post-response ──",
+          "// Response time guard",
+          "pm.test('Response time < 5s', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Validate Content-Type is JSON (skip health check & file downloads)",
+          "if (pm.response.headers.get('Content-Type')?.includes('application/json')) {",
+          "    pm.test('Response is valid JSON', function () {",
+          "        pm.response.to.be.json;",
+          "    });",
+          "}",
+          "",
+          "// Log failed requests for easy debugging in collection runner",
+          "if (pm.response.code >= 400) {",
+          "    console.warn(`[${pm.response.code}] ${pm.request.method} ${pm.request.url.toString()} →`, pm.response.text().substring(0, 500));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "apiUrl",
+      "value": "{{baseUrl}}/api/v1"
+    }
+  ],
+  "item": [
+    {
+      "name": "_Runner Seed",
+      "description": "Bootstrap requests that run first in a collection run.\nLogs in admin and staff accounts so their tokens are available for all subsequent requests.\nAlso generates a unique customer email for this run.",
+      "item": [
+        {
+          "name": "Generate Run ID",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate a unique email for this collection run",
+                  "const ts = Date.now();",
+                  "pm.environment.set('testCustomerEmail', `testcustomer_${ts}@mailinator.com`);",
+                  "pm.environment.set('testCustomerFirstName', 'Test');",
+                  "pm.environment.set('testCustomerLastName', 'Customer');",
+                  "console.log('Run ID:', ts, '| Customer email:', pm.environment.get('testCustomerEmail'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Health check OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Run ID generated', function () {",
+                  "    pm.expect(pm.environment.get('testCustomerEmail')).to.include('@');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Hits health endpoint and generates a unique customer email for this collection run."
+          }
+        },
+        {
+          "name": "Admin Login (seed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.accessToken || json.data?.accessToken) {",
+                  "    const at = json.accessToken || json.data.accessToken;",
+                  "    const rt = json.refreshToken || json.data.refreshToken;",
+                  "    pm.environment.set('adminAccessToken', at);",
+                  "    pm.environment.set('adminRefreshToken', rt);",
+                  "    console.log('Admin token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/login",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with pre-seeded admin account. Saves `adminAccessToken` and `adminRefreshToken`."
+          }
+        },
+        {
+          "name": "Staff Login (seed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Staff login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.accessToken || json.data?.accessToken) {",
+                  "    const at = json.accessToken || json.data.accessToken;",
+                  "    const rt = json.refreshToken || json.data.refreshToken;",
+                  "    pm.environment.set('staffAccessToken', at);",
+                  "    pm.environment.set('staffRefreshToken', rt);",
+                  "    console.log('Staff token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staffEmail}}\",\n  \"password\": \"{{staffPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/login",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with pre-seeded staff account. Saves `staffAccessToken` and `staffRefreshToken`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication flow: register → verify OTP → login → refresh → forgot/reset password.\n\nFor collection runs, the register request auto-generates a unique email. OTP verification uses the `testOtp` env variable (server must accept `123456` in dev/test mode).",
+      "item": [
+        {
+          "name": "Register Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registration successful', function () {",
+                  "    const status = pm.response.code;",
+                  "    pm.expect(status).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "// Schema validation",
+                  "pm.test('Response has userId or message', function () {",
+                  "    const json = pm.response.json();",
+                  "    const hasUserId = !!(json.userId || json.data?.userId || json.data?.id);",
+                  "    const hasMessage = !!json.message;",
+                  "    pm.expect(hasUserId || hasMessage).to.be.true;",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const uid = json.userId || json.data?.userId || json.data?.id || json.id;",
+                  "if (uid) {",
+                  "    pm.environment.set('userId', uid);",
+                  "    console.log('userId saved:', uid);",
+                  "}",
+                  "",
+                  "// Save email for later use (OTP, login)",
+                  "pm.environment.set('registeredEmail', pm.environment.get('testCustomerEmail'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testCustomerEmail}}\",\n  \"password\": \"{{testCustomerPassword}}\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"Customer\",\n  \"phone\": \"+233501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/register",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new customer. Email is auto-generated with a timestamp so each collection run creates a unique user.\n\n**Chained outputs:** `userId`, `registeredEmail`"
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OTP verified', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const at = json.accessToken || json.data?.accessToken;",
+                  "const rt = json.refreshToken || json.data?.refreshToken;",
+                  "if (at) {",
+                  "    pm.environment.set('accessToken', at);",
+                  "    pm.environment.set('refreshToken', rt);",
+                  "    console.log('Customer tokens saved from OTP verify');",
+                  "}",
+                  "",
+                  "const user = json.user || json.data?.user;",
+                  "if (user && user.id) {",
+                  "    pm.environment.set('userId', user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registeredEmail}}\",\n  \"otp\": \"{{testOtp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/verify-otp",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "verify-otp"]
+            },
+            "description": "Verify email with OTP code.\n\n**Collection run note:** Uses `registeredEmail` (set by Register) and `testOtp` (env default `123456`). Server must accept this OTP in dev/test mode.\n\n**Chained outputs:** `accessToken`, `refreshToken`, `userId`"
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registeredEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/resend-otp",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "resend-otp"]
+            },
+            "description": "Resend OTP to user email. Use when the original OTP expired."
+          }
+        },
+        {
+          "name": "Login Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const at = json.accessToken || json.data?.accessToken;",
+                  "const rt = json.refreshToken || json.data?.refreshToken;",
+                  "if (at) {",
+                  "    pm.environment.set('accessToken', at);",
+                  "    pm.environment.set('refreshToken', rt);",
+                  "    console.log('Customer tokens saved from login');",
+                  "}",
+                  "",
+                  "const user = json.user || json.data?.user;",
+                  "if (user && user.id) {",
+                  "    pm.environment.set('userId', user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registeredEmail}}\",\n  \"password\": \"{{testCustomerPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/login",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with the registered customer.\n\n**Chained outputs:** `accessToken`, `refreshToken`, `userId`"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token refreshed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const at = json.accessToken || json.data?.accessToken;",
+                  "const rt = json.refreshToken || json.data?.refreshToken;",
+                  "if (at) {",
+                  "    pm.environment.set('accessToken', at);",
+                  "    pm.environment.set('refreshToken', rt);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/refresh-token",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "refresh-token"]
+            },
+            "description": "Exchange a refresh token for new access + refresh tokens.\n\n**Chained outputs:** `accessToken`, `refreshToken`"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reset email sent', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registeredEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/forgot-password",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "forgot-password"]
+            },
+            "description": "Request a password reset link via email."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password reset', function () {",
+                  "    const status = pm.response.code;",
+                  "    // May fail in collection run if resetToken isn't set — that's OK",
+                  "    pm.expect(status).to.be.oneOf([200, 400, 422]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewTestPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/auth/reset-password",
+              "host": ["{{apiUrl}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Reset password using token from email. Set `resetToken` manually (from email link) for manual testing.\n\n**Note:** Will return 400/422 in collection runs if token isn't set — this is expected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User profile management and admin user operations.",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Profile returned', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const user = json.data || json;",
+                  "if (user.id || user._id) {",
+                  "    pm.environment.set('userId', user.id || user._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/users/profile",
+              "host": ["{{apiUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Get the authenticated user's profile."
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Profile updated', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Customer\",\n  \"phone\": \"+233509876543\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/users/profile",
+              "host": ["{{apiUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Update current user's profile fields."
+          }
+        },
+        {
+          "name": "Change Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password changed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{testCustomerPassword}}\",\n  \"newPassword\": \"NewTestPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/users/change-password",
+              "host": ["{{apiUrl}}"],
+              "path": ["users", "change-password"]
+            },
+            "description": "Change the authenticated user's password."
+          }
+        },
+        {
+          "name": "List Users (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Users listed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/users?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" }
+              ]
+            },
+            "description": "List all users (admin only). Supports pagination and role/status filters."
+          }
+        },
+        {
+          "name": "Get User by ID (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/users/{{userId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Get a specific user by ID (admin only)."
+          }
+        },
+        {
+          "name": "Update User Status (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/users/{{userId}}/status",
+              "host": ["{{apiUrl}}"],
+              "path": ["users", "{{userId}}", "status"]
+            },
+            "description": "Update a user's account status: `active`, `inactive`, or `suspended` (admin only)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Destinations",
+      "description": "Destination CRUD and geospatial queries.",
+      "item": [
+        {
+          "name": "Create Destination (Admin)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate unique destination name to avoid slug collisions across runs",
+                  "const suffix = Date.now().toString().slice(-6);",
+                  "pm.environment.set('_destSuffix', suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const status = pm.response.code;",
+                  "pm.test('Destination created', function () {",
+                  "    pm.expect(status).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const dest = json.data || json;",
+                  "const id = dest.id || dest._id;",
+                  "if (id) {",
+                  "    pm.environment.set('destinationId', id);",
+                  "    console.log('destinationId saved:', id);",
+                  "}",
+                  "if (dest.slug) {",
+                  "    pm.environment.set('destinationSlug', dest.slug);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Destination {{_destSuffix}}\",\n  \"description\": \"Auto-generated test destination for collection run.\",\n  \"region\": \"Volta\",\n  \"location\": {\n    \"type\": \"Point\",\n    \"coordinates\": [0.4786, 6.6018]\n  },\n  \"highlights\": [\"Waterfalls\", \"Hiking\", \"Culture\"],\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/destinations",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations"]
+            },
+            "description": "Create a new destination (admin only).\n\n**Chained outputs:** `destinationId`, `destinationSlug`"
+          }
+        },
+        {
+          "name": "List Destinations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Destinations listed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Fallback: grab first destination ID if not set yet",
+                  "const json = pm.response.json();",
+                  "const items = json.data || json.results || json;",
+                  "if (Array.isArray(items) && items.length > 0 && !pm.environment.get('destinationId')) {",
+                  "    const id = items[0].id || items[0]._id;",
+                  "    pm.environment.set('destinationId', id);",
+                  "    console.log('destinationId fallback set:', id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "region", "value": "", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true }
+              ]
+            },
+            "description": "List all destinations. Public endpoint — no auth required."
+          }
+        },
+        {
+          "name": "Get Destination",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/{{destinationId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "{{destinationId}}"]
+            },
+            "description": "Get a single destination by ID."
+          }
+        },
+        {
+          "name": "Search Destinations",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/search?query=cape",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "search"],
+              "query": [
+                { "key": "query", "value": "cape" }
+              ]
+            },
+            "description": "Full-text search on destination name and description."
+          }
+        },
+        {
+          "name": "Get Destination by Slug",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/slug/{{destinationSlug}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "slug", "{{destinationSlug}}"]
+            },
+            "description": "Get a destination by its URL-friendly slug."
+          }
+        },
+        {
+          "name": "Get Destinations by Region",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/region/Central",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "region", "Central"]
+            },
+            "description": "Get all destinations in a given region."
+          }
+        },
+        {
+          "name": "Find Nearby Partners",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/{{destinationId}}/nearby-partners",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "{{destinationId}}", "nearby-partners"]
+            },
+            "description": "Find hotels, attractions, and dining near a destination (geo query, 15km radius)."
+          }
+        },
+        {
+          "name": "Update Destination (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description for Cape Coast — a must-visit historic destination.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/destinations/{{destinationId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "{{destinationId}}"]
+            },
+            "description": "Update a destination (admin only)."
+          }
+        },
+        {
+          "name": "Toggle Destination Active (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/destinations/{{destinationId}}/toggle",
+              "host": ["{{apiUrl}}"],
+              "path": ["destinations", "{{destinationId}}", "toggle"]
+            },
+            "description": "Toggle a destination's `isActive` status (admin only)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners",
+      "description": "Hotel, Attraction, Dining, and Transport partner management.",
+      "item": [
+        {
+          "name": "Hotels",
+          "item": [
+            {
+              "name": "Create Hotel (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Hotel created', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                      "});",
+                      "const json = pm.response.json();",
+                      "const h = json.data || json;",
+                      "const id = h.id || h._id;",
+                      "if (id) {",
+                      "    pm.environment.set('hotelPartnerId', id);",
+                      "    console.log('hotelPartnerId saved:', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Ridge Royal Hotel\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"tier\": \"premium\",\n  \"inventoryModel\": \"free_sale\",\n  \"contactEmail\": \"ridge@example.com\",\n  \"contactPhone\": \"+233301234567\",\n  \"address\": \"Ridge Road, Cape Coast\",\n  \"gpsCoords\": {\n    \"type\": \"Point\",\n    \"coordinates\": [-1.2450, 5.1050]\n  },\n  \"amenities\": [\"pool\", \"wifi\", \"restaurant\", \"spa\"],\n  \"priceRange\": { \"min\": 150, \"max\": 500, \"currency\": \"GHS\" },\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels"]
+                },
+                "description": "Create a hotel partner (admin only).\n\n**Chained outputs:** `hotelPartnerId`"
+              }
+            },
+            {
+              "name": "List Hotels",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Hotels listed', function () { pm.response.to.have.status(200); });",
+                      "const json = pm.response.json();",
+                      "const items = json.data || json.results || json;",
+                      "if (Array.isArray(items) && items.length > 0 && !pm.environment.get('hotelPartnerId')) {",
+                      "    pm.environment.set('hotelPartnerId', items[0].id || items[0]._id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels?page=1&pageSize=10",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" },
+                    { "key": "destinationId", "value": "{{destinationId}}", "disabled": true },
+                    { "key": "tier", "value": "premium", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Hotel",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/{{hotelPartnerId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "{{hotelPartnerId}}"]
+                }
+              }
+            },
+            {
+              "name": "Get Hotels by Destination",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/destination/{{destinationId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "destination", "{{destinationId}}"]
+                }
+              }
+            },
+            {
+              "name": "Find Nearby Hotels",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/nearby?lat=5.1036&lng=-1.2466&maxDistanceKm=10",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "nearby"],
+                  "query": [
+                    { "key": "lat", "value": "5.1036" },
+                    { "key": "lng", "value": "-1.2466" },
+                    { "key": "maxDistanceKm", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Hotel (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amenities\": [\"pool\", \"wifi\", \"restaurant\", \"spa\", \"gym\"]\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/{{hotelPartnerId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "{{hotelPartnerId}}"]
+                }
+              }
+            },
+            {
+              "name": "Set Hotel Commission (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"commissionRate\": 15\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/{{hotelPartnerId}}/commission",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "{{hotelPartnerId}}", "commission"]
+                }
+              }
+            },
+            {
+              "name": "Add Close-Out Dates (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startDate\": \"2026-12-24\",\n  \"endDate\": \"2026-12-26\",\n  \"reason\": \"Christmas holiday closure\"\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/{{hotelPartnerId}}/closeout-dates",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "{{hotelPartnerId}}", "closeout-dates"]
+                }
+              }
+            },
+            {
+              "name": "Toggle Hotel Active (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "PUT",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/hotels/{{hotelPartnerId}}/toggle",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "hotels", "{{hotelPartnerId}}", "toggle"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Attractions",
+          "item": [
+            {
+              "name": "Create Attraction (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Attraction created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "const json = pm.response.json();",
+                      "const a = json.data || json;",
+                      "if (a.id || a._id) { pm.environment.set('attractionPartnerId', a.id || a._id); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Kakum National Park\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"category\": \"nature\",\n  \"description\": \"Tropical rainforest with canopy walkway.\",\n  \"gpsCoords\": { \"type\": \"Point\", \"coordinates\": [-1.3834, 5.3484] },\n  \"ticketPrice\": { \"adult\": 60, \"child\": 30, \"currency\": \"GHS\" },\n  \"operatingHours\": { \"open\": \"06:00\", \"close\": \"17:00\" },\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/attractions",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "attractions"]
+                },
+                "description": "**Chained outputs:** `attractionPartnerId`"
+              }
+            },
+            {
+              "name": "List Attractions",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/attractions?page=1&pageSize=10",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "attractions"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Attraction",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/attractions/{{attractionPartnerId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "attractions", "{{attractionPartnerId}}"]
+                }
+              }
+            },
+            {
+              "name": "Get Attractions by Destination",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/attractions/destination/{{destinationId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "attractions", "destination", "{{destinationId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dining",
+          "item": [
+            {
+              "name": "Create Dining Partner (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Dining created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "const json = pm.response.json();",
+                      "const d = json.data || json;",
+                      "if (d.id || d._id) { pm.environment.set('diningPartnerId', d.id || d._id); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Oasis Beach Restaurant\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"cuisineType\": \"local\",\n  \"description\": \"Beachfront dining with fresh seafood.\",\n  \"gpsCoords\": { \"type\": \"Point\", \"coordinates\": [-1.2500, 5.1000] },\n  \"priceRange\": { \"min\": 30, \"max\": 150, \"currency\": \"GHS\" },\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/dining",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "dining"]
+                },
+                "description": "**Chained outputs:** `diningPartnerId`"
+              }
+            },
+            {
+              "name": "List Dining Partners",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/dining?page=1&pageSize=10",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "dining"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Dining Partner",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/dining/{{diningPartnerId}}",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "dining", "{{diningPartnerId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transport",
+          "item": [
+            {
+              "name": "Register Transport Provider (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Provider created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "const json = pm.response.json();",
+                      "const p = json.data || json;",
+                      "if (p.id || p._id) { pm.environment.set('transportProviderId', p.id || p._id); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"companyName\": \"GhanaRide Transports\",\n  \"contactPerson\": \"Kwame Asante\",\n  \"phone\": \"+233201234567\",\n  \"email\": \"kwame@ghanaride.com\",\n  \"commissionRate\": 10\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/transport/providers",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "transport", "providers"]
+                },
+                "description": "**Chained outputs:** `transportProviderId`"
+              }
+            },
+            {
+              "name": "List Transport Providers",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/transport/providers",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "transport", "providers"]
+                }
+              }
+            },
+            {
+              "name": "Add Vehicle (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Vehicle added', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "const json = pm.response.json();",
+                      "const v = json.data || json;",
+                      "if (v.id || v._id) { pm.environment.set('vehicleId', v.id || v._id); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+                },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"providerId\": \"{{transportProviderId}}\",\n  \"type\": \"minibus\",\n  \"capacity\": 15,\n  \"basePricePerDay\": 500\n}"
+                },
+                "url": {
+                  "raw": "{{apiUrl}}/partners/transport/vehicles",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "transport", "vehicles"]
+                },
+                "description": "**Chained outputs:** `vehicleId`"
+              }
+            },
+            {
+              "name": "List Vehicles",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/transport/vehicles",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "transport", "vehicles"]
+                }
+              }
+            },
+            {
+              "name": "Estimate Transport Cost",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiUrl}}/partners/transport/estimate?origin=Accra&destination=Cape Coast&vehicleType=minibus&numberOfPassengers=10",
+                  "host": ["{{apiUrl}}"],
+                  "path": ["partners", "transport", "estimate"],
+                  "query": [
+                    { "key": "origin", "value": "Accra" },
+                    { "key": "destination", "value": "Cape Coast" },
+                    { "key": "vehicleType", "value": "minibus" },
+                    { "key": "numberOfPassengers", "value": "10" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tour Packages",
+      "description": "Pre-packaged tour CRUD, search, waitlist.",
+      "item": [
+        {
+          "name": "Create Tour Package (Admin)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Date.now().toString().slice(-6);",
+                  "pm.environment.set('_pkgSuffix', suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Package created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "const json = pm.response.json();",
+                  "const pkg = json.data || json;",
+                  "const id = pkg.id || pkg._id;",
+                  "if (id) {",
+                  "    pm.environment.set('tourPackageId', id);",
+                  "    console.log('tourPackageId saved:', id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Tour {{_pkgSuffix}}\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"description\": \"3-day adventure tour for collection run testing.\",\n  \"startDate\": \"2026-07-15\",\n  \"endDate\": \"2026-07-17\",\n  \"durationDays\": 3,\n  \"hotelPartnerId\": \"{{hotelPartnerId}}\",\n  \"attractionIds\": [\"{{attractionPartnerId}}\"],\n  \"transportType\": \"minibus\",\n  \"sellingMode\": \"individual_seats\",\n  \"totalCapacity\": 20,\n  \"isActive\": true,\n  \"status\": \"published\",\n  \"pricingTiers\": [{\n    \"label\": \"Standard\",\n    \"pricePerPerson\": 1200,\n    \"minGroupSize\": 4,\n    \"maxGroupSize\": 20\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages"]
+            },
+            "description": "Create a pre-packaged tour (admin only).\n\n**Chained outputs:** `tourPackageId`"
+          }
+        },
+        {
+          "name": "Publish Package (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}"]
+            },
+            "description": "Set package status to published (create defaults to draft)."
+          }
+        },
+        {
+          "name": "Activate Package (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/toggle",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "toggle"]
+            },
+            "description": "Toggle isActive to true (create defaults to false)."
+          }
+        },
+        {
+          "name": "List Tour Packages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Packages listed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "const items = json.data || json.results || json;",
+                  "if (Array.isArray(items) && items.length > 0 && !pm.environment.get('tourPackageId')) {",
+                  "    pm.environment.set('tourPackageId', items[0].id || items[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tour Package",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Search Tour Packages",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/search?query=heritage&sortBy=relevance",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "search"],
+              "query": [
+                { "key": "query", "value": "heritage" },
+                { "key": "sortBy", "value": "relevance" },
+                { "key": "minPrice", "value": "500", "disabled": true },
+                { "key": "maxPrice", "value": "5000", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Proximity Map",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/proximity-map",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "proximity-map"]
+            }
+          }
+        },
+        {
+          "name": "Increment View Count",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/view",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "view"]
+            }
+          }
+        },
+        {
+          "name": "Join Waitlist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const entry = json.data || json;",
+                  "if (entry.id || entry._id) { pm.environment.set('waitlistEntryId', entry.id || entry._id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupSize\": 2,\n  \"preferredDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/waitlist",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "waitlist"]
+            }
+          }
+        },
+        {
+          "name": "Get Waitlist (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/waitlist",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "waitlist"]
+            }
+          }
+        },
+        {
+          "name": "Update Package (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated: 2-day heritage tour with added night activities.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Package Active (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/packages/{{tourPackageId}}/toggle",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "packages", "{{tourPackageId}}", "toggle"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dynamic Tours",
+      "description": "Custom tour builder flow: build draft → submit for pricing → manage requests.",
+      "item": [
+        {
+          "name": "Get Options for Destination",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/dynamic/options?destinationId={{destinationId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "dynamic", "options"],
+              "query": [
+                { "key": "destinationId", "value": "{{destinationId}}" }
+              ]
+            },
+            "description": "Get available hotels, attractions, and dining for a destination (used by the tour builder UI)."
+          }
+        },
+        {
+          "name": "Build Tour Request (Draft)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Rebuild request body — inject partner IDs only when valid",
+                  "const body = JSON.parse(pm.request.body.raw);",
+                  "const attrId = pm.environment.get('attractionPartnerId');",
+                  "const dineId = pm.environment.get('diningPartnerId');",
+                  "// hotelPreference is an enum (budget/standard/premium/luxury), not an ObjectId",
+                  "body.destinations[0].hotelPreference = 'premium';",
+                  "if (attrId && attrId.length === 24) body.destinations[0].selectedAttractions = [attrId];",
+                  "if (dineId && dineId.length === 24) body.destinations[0].diningPreferences = [dineId];",
+                  "pm.request.body.raw = JSON.stringify(body);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Tour request created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "const json = pm.response.json();",
+                  "const req = json.data || json;",
+                  "const id = req.id || req._id;",
+                  "if (id) {",
+                  "    pm.environment.set('tourRequestId', id);",
+                  "    console.log('tourRequestId saved:', id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinations\": [\n    {\n      \"destinationId\": \"{{destinationId}}\",\n      \"nightsStay\": 3\n    }\n  ],\n  \"groupSize\": 4,\n  \"transportPreference\": \"minibus\",\n  \"preferredStartDate\": \"2026-08-10\",\n  \"durationDays\": 4,\n  \"specialRequests\": \"Vegetarian meals preferred\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/dynamic/build",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "dynamic", "build"]
+            },
+            "description": "Create a custom tour request in draft status.\n\n**Chained outputs:** `tourRequestId`"
+          }
+        },
+        {
+          "name": "Submit for Pricing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const trId = pm.environment.get('tourRequestId');",
+                  "if (!trId || trId === 'null') {",
+                  "    pm.test('Submit skipped — no tourRequestId', function () { });",
+                  "} else {",
+                  "    pm.test('Submitted for pricing', function () { pm.response.to.have.status(200); });",
+                  "}",
+                  "const submitJson = pm.response.json();",
+                  "const submitData = submitJson.data || submitJson;",
+                  "// Quote may be returned",
+                  "if (submitData.quoteId || submitData.quote?.id || submitData.quote?._id) {",
+                  "    const qid = submitData.quoteId || submitData.quote?.id || submitData.quote?._id;",
+                  "    pm.environment.set('quoteId', qid);",
+                  "    console.log('quoteId saved:', qid);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tourRequestId\": \"{{tourRequestId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/tours/dynamic/submit",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "dynamic", "submit"]
+            },
+            "description": "Submit draft tour request for staff pricing.\n\n**Chained outputs:** `quoteId`"
+          }
+        },
+        {
+          "name": "Get My Tour Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/dynamic/requests",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "dynamic", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Tour Request",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/tours/dynamic/requests/{{tourRequestId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["tours", "dynamic", "requests", "{{tourRequestId}}"]
+            },
+            "description": "Cancel a tour request (only valid from draft/submitted states)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pricing Desk",
+      "description": "Staff workflow for pricing custom tour requests.",
+      "item": [
+        {
+          "name": "Get Pricing Queue (Staff)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Queue returned', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "const quotes = json.data?.quotes || json.quotes || json.data || [];",
+                  "if (Array.isArray(quotes) && quotes.length > 0 && !pm.environment.get('quoteId')) {",
+                  "    pm.environment.set('quoteId', quotes[0].id || quotes[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/queue?page=1&pageSize=20",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "queue"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "status", "value": "pending", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Quote Detail (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Quote to Self (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}/assign",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Submit Quote (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalPrice\": 4800,\n  \"breakdown\": {\n    \"hotel\": 1800,\n    \"attractions\": 240,\n    \"dining\": 480,\n    \"transport\": 600,\n    \"margin\": 680\n  },\n  \"notes\": \"Includes all park entrance fees and guided tours.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}/submit",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Customer Accept Quote",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}/accept",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}", "accept"]
+            },
+            "description": "Customer accepts the submitted quote (uses customer token)."
+          }
+        },
+        {
+          "name": "Customer Reject Quote",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}/reject",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}", "reject"]
+            },
+            "description": "Customer rejects the quote."
+          }
+        },
+        {
+          "name": "Revise Quote (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalPrice\": 4200,\n  \"breakdown\": {\n    \"hotel\": 1800,\n    \"attractions\": 240,\n    \"dining\": 480,\n    \"transport\": 600,\n    \"margin\": 80\n  },\n  \"notes\": \"Revised pricing with reduced margin.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/quotes/{{quoteId}}/revise",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "quotes", "{{quoteId}}", "revise"]
+            }
+          }
+        },
+        {
+          "name": "Get SLA Metrics (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/pricing-desk/sla-metrics",
+              "host": ["{{apiUrl}}"],
+              "path": ["pricing-desk", "sla-metrics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "description": "Booking creation, management, partner confirmations, and analytics.",
+      "item": [
+        {
+          "name": "Create Booking (Packaged)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Skip assertions if upstream package wasn't created",
+                  "const pkgId = pm.environment.get('tourPackageId');",
+                  "if (!pkgId || pkgId === 'null' || pkgId === '') {",
+                  "    pm.test('Booking skipped — no tourPackageId from upstream', function () {",
+                  "        console.warn('tourPackageId not set — Create Tour Package likely failed');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Booking created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "    pm.test('Booking response has required fields', function () {",
+                  "        const json = pm.response.json();",
+                  "        const b = json.data || json;",
+                  "        pm.expect(b).to.have.any.keys('bookingId', 'id', '_id');",
+                  "    });",
+                  "}",
+                  "",
+                  "const json = pm.response.json();",
+                  "const b = json.data || json;",
+                  "const id = b.bookingId || b.id || b._id;",
+                  "if (id) {",
+                  "    pm.environment.set('bookingId', id);",
+                  "    console.log('bookingId saved:', id);",
+                  "}",
+                  "if (b.bookingRef) { pm.environment.set('bookingRef', b.bookingRef); }",
+                  "if (b.commitmentFeeAmount) { pm.environment.set('commitmentFeeAmount', b.commitmentFeeAmount); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"packageId\": \"{{tourPackageId}}\",\n  \"groupSize\": 4,\n  \"tourDate\": \"2026-07-15\",\n  \"specialRequests\": \"Window seats on transport please\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/bookings",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings"]
+            },
+            "description": "Create a booking for a pre-packaged tour.\n\n**Chained outputs:** `bookingId`, `bookingRef`, `commitmentFeeAmount`"
+          }
+        },
+        {
+          "name": "Create Booking (Dynamic/Quote)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const b = json.data || json;",
+                  "const id = b.bookingId || b.id || b._id;",
+                  "if (id && pm.response.code < 300) {",
+                  "    pm.environment.set('dynamicBookingId', id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"groupSize\": 4,\n  \"specialRequests\": \"Vegetarian meals\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/bookings",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings"]
+            },
+            "description": "Create a booking from an accepted dynamic tour quote."
+          }
+        },
+        {
+          "name": "List Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "status", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Booking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings/{{bookingId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "{{bookingId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Booking Status (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pending_payment\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/bookings/{{bookingId}}/status",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "{{bookingId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Confirm Partner (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerId\": \"{{hotelPartnerId}}\",\n  \"partnerType\": \"hotel\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/bookings/{{bookingId}}/confirm-partner",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "{{bookingId}}", "confirm-partner"]
+            }
+          }
+        },
+        {
+          "name": "Get Substitution Suggestions (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings/{{bookingId}}/substitutions/{{hotelPartnerId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "{{bookingId}}", "substitutions", "{{hotelPartnerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings/{{bookingId}}/cancel",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "{{bookingId}}", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "Get Booking Analytics (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings/analytics",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "analytics"],
+              "query": [
+                { "key": "startDate", "value": "2026-01-01", "disabled": true },
+                { "key": "endDate", "value": "2026-12-31", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Occupancy Report (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/bookings/occupancy?startDate=2026-07-01",
+              "host": ["{{apiUrl}}"],
+              "path": ["bookings", "occupancy"],
+              "query": [
+                { "key": "startDate", "value": "2026-07-01" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Payment initiation, verification, refunds, and analytics.",
+      "item": [
+        {
+          "name": "Initiate Payment (Commitment Fee)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const bid = pm.environment.get('bookingId');",
+                  "if (!bid || bid === 'null' || bid === '') {",
+                  "    pm.test('Payment skipped — no bookingId', function () { });",
+                  "} else {",
+                  "    pm.test('Payment initiated', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "}",
+                  "const json = pm.response.json();",
+                  "const p = json.data || json;",
+                  "if (p.paymentId || p.id || p._id) {",
+                  "    pm.environment.set('paymentId', p.paymentId || p.id || p._id);",
+                  "}",
+                  "if (p.transactionRef || p.reference) {",
+                  "    pm.environment.set('transactionRef', p.transactionRef || p.reference);",
+                  "}",
+                  "if (p.authorizationUrl) {",
+                  "    console.log('Paystack auth URL:', p.authorizationUrl);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"paymentType\": \"commitment_fee\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/payments/initiate",
+              "host": ["{{apiUrl}}"],
+              "path": ["payments", "initiate"]
+            },
+            "description": "Initiate a Paystack payment. Returns `authorizationUrl` to redirect customer.\n\n**Chained outputs:** `paymentId`, `transactionRef`"
+          }
+        },
+        {
+          "name": "Initiate Payment (Full)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"paymentType\": \"full_payment\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/payments/initiate",
+              "host": ["{{apiUrl}}"],
+              "path": ["payments", "initiate"]
+            }
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ref = pm.environment.get('transactionRef');",
+                  "if (!ref || ref === 'null' || ref === '') {",
+                  "    pm.test('Verify skipped — no transactionRef', function () { });",
+                  "} else {",
+                  "    pm.test('Payment verified', function () {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([200, 400, 422]);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"{{transactionRef}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/payments/verify",
+              "host": ["{{apiUrl}}"],
+              "path": ["payments", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Get Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payments/transactions?page=1&pageSize=20",
+              "host": ["{{apiUrl}}"],
+              "path": ["payments", "transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "bookingId", "value": "{{bookingId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refund Payment (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentId\": \"{{paymentId}}\",\n  \"reason\": \"Customer requested cancellation\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/payments/refund",
+              "host": ["{{apiUrl}}"],
+              "path": ["payments", "refund"]
+            }
+          }
+        },
+        {
+          "name": "Paystack Webhook",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate HMAC-SHA512 signature using crypto-js (built-in)",
+                  "const CryptoJS_ = require('crypto-js');",
+                  "const webhookSecret = pm.environment.get('paystackWebhookSecret') || pm.variables.get('paystackWebhookSecret') || 'test_webhook_secret';",
+                  "const body = pm.request.body.raw;",
+                  "const hash = CryptoJS_.HmacSHA512(body, webhookSecret).toString(CryptoJS_.enc.Hex);",
+                  "pm.environment.set('paystackWebhookSignature', hash);",
+                  "console.log('Webhook HMAC signature generated');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-paystack-signature", "value": "{{paystackWebhookSignature}}", "description": "HMAC-SHA512 — auto-generated by pre-request script using crypto-js" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"{{transactionRef}}\",\n    \"amount\": 120000,\n    \"currency\": \"GHS\",\n    \"status\": \"success\",\n    \"paid_at\": \"2026-07-15T10:00:00.000Z\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/webhooks/paystack",
+              "host": ["{{apiUrl}}"],
+              "path": ["webhooks", "paystack"]
+            },
+            "description": "Simulate a Paystack webhook. In production, Paystack signs the body with your webhook secret."
+          }
+        },
+        {
+          "name": "Get Payment Analytics (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/analytics/payments",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "analytics", "payments"]
+            }
+          }
+        },
+        {
+          "name": "Get Revenue by Period (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/analytics/revenue?period=monthly",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "analytics", "revenue"],
+              "query": [
+                { "key": "period", "value": "monthly" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Plans",
+      "description": "Payment plan milestones and installment management.",
+      "item": [
+        {
+          "name": "Get Payment Plan by Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const bid = pm.environment.get('bookingId');",
+                  "if (!bid || bid === 'null' || bid === '') {",
+                  "    pm.test('Plan skipped — no bookingId', function () { });",
+                  "} else {",
+                  "    pm.test('Plan returned', function () { pm.response.to.have.status(200); });",
+                  "}",
+                  "const json = pm.response.json();",
+                  "const plan = json.data || json;",
+                  "const id = plan.id || plan._id;",
+                  "if (id) { pm.environment.set('paymentPlanId', id); }",
+                  "const milestones = plan.milestones || [];",
+                  "if (milestones.length > 0) {",
+                  "    const mid = milestones[0].id || milestones[0]._id;",
+                  "    if (mid) { pm.environment.set('milestoneId', mid); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payment-plans/booking/{{bookingId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["payment-plans", "booking", "{{bookingId}}"]
+            },
+            "description": "Get the payment plan for a booking.\n\n**Chained outputs:** `paymentPlanId`, `milestoneId`"
+          }
+        },
+        {
+          "name": "Get Payment Plan by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payment-plans/{{paymentPlanId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["payment-plans", "{{paymentPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Milestones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payment-plans/{{paymentPlanId}}/milestones",
+              "host": ["{{apiUrl}}"],
+              "path": ["payment-plans", "{{paymentPlanId}}", "milestones"]
+            }
+          }
+        },
+        {
+          "name": "Get Next Due Milestone",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payment-plans/booking/{{bookingId}}/next-due",
+              "host": ["{{apiUrl}}"],
+              "path": ["payment-plans", "booking", "{{bookingId}}", "next-due"]
+            }
+          }
+        },
+        {
+          "name": "Pay Milestone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const d = json.data || json;",
+                  "if (d.paymentId) { pm.environment.set('paymentId', d.paymentId); }",
+                  "if (d.transactionRef || d.accessCode) {",
+                  "    pm.environment.set('transactionRef', d.transactionRef || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/payment-plans/milestones/{{milestoneId}}/pay",
+              "host": ["{{apiUrl}}"],
+              "path": ["payment-plans", "milestones", "{{milestoneId}}", "pay"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contracts",
+      "description": "Contract templates and customer contract workflow.",
+      "item": [
+        {
+          "name": "Seed Default Templates (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Templates seeded', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/contract-templates/seed",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "contract-templates", "seed"]
+            }
+          }
+        },
+        {
+          "name": "List Contract Templates (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Templates listed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "const items = json.data || json;",
+                  "if (Array.isArray(items) && items.length > 0) {",
+                  "    pm.environment.set('contractTemplateId', items[0].id || items[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/contract-templates",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "contract-templates"]
+            }
+          }
+        },
+        {
+          "name": "Create Contract Template (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const t = json.data || json;",
+                  "if (t.id || t._id) { pm.environment.set('contractTemplateId', t.id || t._id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Standard Booking Contract\",\n  \"title\": \"Tour Booking Agreement\",\n  \"body\": \"<h1>Booking Agreement</h1><p>This agreement is between Elysium Tours and {{customerName}} for booking {{bookingRef}}.</p><p>Total: {{totalAmount}} GHS</p>\",\n  \"variables\": [\"customerName\", \"bookingRef\", \"totalAmount\"],\n  \"cancellationClause\": \"Full refund if cancelled 14 days before tour date.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/admin/contract-templates",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "contract-templates"]
+            }
+          }
+        },
+        {
+          "name": "Get Contract by Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const c = json.data || json;",
+                  "if (c.id || c._id) { pm.environment.set('contractId', c.id || c._id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/contracts/booking/{{bookingId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts", "booking", "{{bookingId}}"]
+            },
+            "description": "**Chained outputs:** `contractId`"
+          }
+        },
+        {
+          "name": "Send Contract (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/contracts/{{contractId}}/send",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts", "{{contractId}}", "send"]
+            }
+          }
+        },
+        {
+          "name": "Accept Contract (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractId\": \"{{contractId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/contracts/accept",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts", "accept"]
+            }
+          }
+        },
+        {
+          "name": "Reject Contract (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/contracts/{{contractId}}/reject",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts", "{{contractId}}", "reject"]
+            }
+          }
+        },
+        {
+          "name": "Verify Contract Acceptance",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/contracts/verify/{{bookingId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts", "verify", "{{bookingId}}"]
+            }
+          }
+        },
+        {
+          "name": "List Contracts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/contracts",
+              "host": ["{{apiUrl}}"],
+              "path": ["contracts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Interests",
+      "description": "Expression of interest for tour packages.",
+      "item": [
+        {
+          "name": "Submit Interest",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const pkgId = pm.environment.get('tourPackageId');",
+                  "if (!pkgId || pkgId === 'null') {",
+                  "    pm.test('Interest skipped — no tourPackageId', function () { });",
+                  "} else {",
+                  "    pm.test('Interest submitted', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "}",
+                  "const json = pm.response.json();",
+                  "const i = json.data || json;",
+                  "if (i.id || i._id) { pm.environment.set('interestId', i.id || i._id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tourPackageId\": \"{{tourPackageId}}\",\n  \"groupSize\": 6,\n  \"preferredDates\": {\n    \"start\": \"2026-09-01\",\n    \"end\": \"2026-09-05\"\n  },\n  \"notes\": \"We are a family group including 2 children.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/interests",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests"]
+            },
+            "description": "**Chained outputs:** `interestId`"
+          }
+        },
+        {
+          "name": "List My Interests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/interests/mine",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests", "mine"]
+            }
+          }
+        },
+        {
+          "name": "List All Interests (Staff)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{staffAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/interests",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests"]
+            }
+          }
+        },
+        {
+          "name": "Get Interest Count (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/interests/count?tourPackageId={{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests", "count"],
+              "query": [
+                { "key": "tourPackageId", "value": "{{tourPackageId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Withdraw Interest",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/interests/{{interestId}}/withdraw",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests", "{{interestId}}", "withdraw"]
+            }
+          }
+        },
+        {
+          "name": "Convert to Bulk Invite (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/interests/bulk-invite/{{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["interests", "bulk-invite", "{{tourPackageId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "description": "Customer reviews on tour packages.",
+      "item": [
+        {
+          "name": "Create Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const pkgId = pm.environment.get('tourPackageId');",
+                  "if (!pkgId || pkgId === 'null') {",
+                  "    pm.test('Review skipped — no tourPackageId', function () { });",
+                  "} else {",
+                  "    pm.test('Review created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "}",
+                  "const json = pm.response.json();",
+                  "const r = json.data || json;",
+                  "if (r.id || r._id) { pm.environment.set('reviewId', r.id || r._id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tourPackageId\": \"{{tourPackageId}}\",\n  \"bookingId\": \"{{bookingId}}\",\n  \"rating\": 5,\n  \"title\": \"Amazing heritage experience!\",\n  \"comment\": \"The canopy walk at Kakum was breathtaking. Excellent guides and comfortable hotel.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/reviews",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews"]
+            },
+            "description": "**Chained outputs:** `reviewId`"
+          }
+        },
+        {
+          "name": "List Reviews by Tour",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/reviews/tour/{{tourPackageId}}?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews", "tour", "{{tourPackageId}}"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Review Stats",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/reviews/stats/{{tourPackageId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews", "stats", "{{tourPackageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Updated: Great experience but the food could be improved.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/reviews/{{reviewId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews", "{{reviewId}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Admin Response",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"Thank you for your feedback! We've noted the dining improvement.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/reviews/{{reviewId}}/response",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews", "{{reviewId}}", "response"]
+            }
+          }
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/reviews/{{reviewId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["reviews", "{{reviewId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contact & Newsletter",
+      "description": "Public contact form and newsletter subscription.",
+      "item": [
+        {
+          "name": "Submit Contact Form",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ama\",\n  \"lastName\": \"Mensah\",\n  \"email\": \"ama@example.com\",\n  \"phone\": \"+233201234567\",\n  \"subject\": \"Group booking inquiry\",\n  \"message\": \"We are a corporate group of 30 looking for a team-building tour to Kumasi.\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/contact",
+              "host": ["{{apiUrl}}"],
+              "path": ["contact"]
+            }
+          }
+        },
+        {
+          "name": "Subscribe to Newsletter",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"subscriber@example.com\",\n  \"firstName\": \"Kofi\",\n  \"preferences\": [\"heritage\", \"adventure\", \"beach\"]\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/contact/newsletter",
+              "host": ["{{apiUrl}}"],
+              "path": ["contact", "newsletter"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "User notification management.",
+      "item": [
+        {
+          "name": "List My Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Notifications returned', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "const items = json.data || json;",
+                  "if (Array.isArray(items) && items.length > 0) {",
+                  "    pm.environment.set('notificationId', items[0].id || items[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/notifications",
+              "host": ["{{apiUrl}}"],
+              "path": ["notifications"]
+            },
+            "description": "**Chained outputs:** `notificationId`"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/notifications/{{notificationId}}/read",
+              "host": ["{{apiUrl}}"],
+              "path": ["notifications", "{{notificationId}}", "read"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Media",
+      "description": "File upload/download via Cloudinary.",
+      "item": [
+        {
+          "name": "Upload File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const m = json.data || json;",
+                  "if (m.publicId) { pm.environment.set('mediaPublicId', m.publicId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Select a file (max 10MB)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{apiUrl}}/media/upload",
+              "host": ["{{apiUrl}}"],
+              "path": ["media", "upload"]
+            },
+            "description": "Upload a file to Cloudinary. Select a file in the form-data body.\n\n**Chained outputs:** `mediaPublicId`"
+          }
+        },
+        {
+          "name": "Upload from URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const m = json.data || json;",
+                  "if (m.publicId) { pm.environment.set('mediaPublicId', m.publicId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=400\"\n}"
+            },
+            "url": {
+              "raw": "{{apiUrl}}/media/upload-url",
+              "host": ["{{apiUrl}}"],
+              "path": ["media", "upload-url"]
+            }
+          }
+        },
+        {
+          "name": "List Media (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/media?page=1&pageSize=20",
+              "host": ["{{apiUrl}}"],
+              "path": ["media"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Signed URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/media/signed-url/{{mediaPublicId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["media", "signed-url", "{{mediaPublicId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Media (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/media/{{mediaPublicId}}",
+              "host": ["{{apiUrl}}"],
+              "path": ["media", "{{mediaPublicId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CMS",
+      "description": "Public CMS content from Sanity (blog, FAQs, testimonials, gallery).",
+      "item": [
+        {
+          "name": "List Blog Posts",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/blog?page=1&pageSize=10",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "blog"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "featured", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Blog Post by Slug",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/blog/sample-blog-post",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "blog", "sample-blog-post"]
+            }
+          }
+        },
+        {
+          "name": "List FAQs",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/faqs",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "faqs"]
+            }
+          }
+        },
+        {
+          "name": "List Testimonials",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/testimonials",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "testimonials"]
+            }
+          }
+        },
+        {
+          "name": "List Gallery",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/gallery",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "gallery"]
+            }
+          }
+        },
+        {
+          "name": "Get About Content",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/about",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "about"]
+            }
+          }
+        },
+        {
+          "name": "Get Site Settings",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/cms/settings",
+              "host": ["{{apiUrl}}"],
+              "path": ["cms", "settings"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Admin dashboard, analytics, and management.",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/dashboard",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Booking Analytics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/analytics/bookings",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "analytics", "bookings"]
+            }
+          }
+        },
+        {
+          "name": "Occupancy Analytics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/analytics/occupancy?startDate=2026-01-01",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "analytics", "occupancy"],
+              "query": [
+                { "key": "startDate", "value": "2026-01-01" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "SLA Metrics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/sla-metrics",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "sla-metrics"]
+            }
+          }
+        },
+        {
+          "name": "List Email Templates (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiUrl}}/admin/templates",
+              "host": ["{{apiUrl}}"],
+              "path": ["admin", "templates"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

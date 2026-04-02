@@ -87,7 +87,7 @@ module.exports = {
 			tourPackageId: "string|optional",
 			destinationId: "string|optional",
 			preferredDates: "object|optional",
-			groupSize: "number|optional",
+			groupSize: { type: "number", optional: true, convert: true },
 			contactPreference: "string|optional",
 			notes: "string|optional",
 			status: "string|optional",

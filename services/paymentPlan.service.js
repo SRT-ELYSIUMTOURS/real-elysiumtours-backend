@@ -39,8 +39,8 @@ module.exports = {
 			params: {
 				bookingId: "string",
 				totalAmount: "number",
-				commitmentFeePercent: { type: "number", optional: true },
-				numberOfMilestones: { type: "number", optional: true },
+				commitmentFeePercent: { type: "number", optional: true, convert: true },
+				numberOfMilestones: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const {
