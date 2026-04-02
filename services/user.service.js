@@ -1,0 +1,193 @@
+"use strict";
+
+const { MoleculerClientError } = require("moleculer").Errors;
+const bcrypt = require("bcrypt");
+const { ERROR_CODES } = require("../utils/constants");
+
+const SALT_ROUNDS = 12;
+
+module.exports = {
+	name: "user",
+	dependencies: ["user.model"],
+
+	actions: {
+		/**
+		 * Get the authenticated user's profile.
+		 */
+		getProfile: {
+			auth: "required",
+			async handler(ctx) {
+				const userId = ctx.meta.user.id;
+
+				const user = await ctx.call("user.model.get", { id: userId });
+				if (!user) {
+					throw new MoleculerClientError(
+						"User not found.",
+						404,
+						ERROR_CODES.USER_NOT_FOUND
+					);
+				}
+
+				return user;
+			},
+		},
+
+		/**
+		 * Update the authenticated user's profile.
+		 * Cannot update email, role, or password through this endpoint.
+		 */
+		updateProfile: {
+			auth: "required",
+			params: {
+				firstName: "string|optional",
+				lastName: "string|optional",
+				phone: "string|optional",
+			},
+			async handler(ctx) {
+				const userId = ctx.meta.user.id;
+				const { firstName, lastName, phone } = ctx.params;
+
+				const updateData = { id: userId };
+				if (firstName !== undefined) updateData.firstName = firstName;
+				if (lastName !== undefined) updateData.lastName = lastName;
+				if (phone !== undefined) updateData.phone = phone;
+
+				const updated = await ctx.call("user.model.update", updateData);
+				return updated;
+			},
+		},
+
+		/**
+		 * List users with optional filters (admin only).
+		 */
+		listUsers: {
+			auth: "required",
+			role: "admin",
+			params: {
+				page: "number|optional|integer|positive",
+				pageSize: "number|optional|integer|positive|max:100",
+				role: "string|optional",
+				status: "string|optional",
+			},
+			async handler(ctx) {
+				const { page = 1, pageSize = 10, role, status } = ctx.params;
+
+				const query = {};
+				if (role) query.role = role;
+				if (status) query.status = status;
+
+				const result = await ctx.call("user.model.list", {
+					page,
+					pageSize,
+					query,
+				});
+
+				return result;
+			},
+		},
+
+		/**
+		 * Get a specific user by ID (admin only).
+		 */
+		getUserById: {
+			auth: "required",
+			role: "admin",
+			params: {
+				id: "string",
+			},
+			async handler(ctx) {
+				const { id } = ctx.params;
+
+				const user = await ctx.call("user.model.get", { id });
+				if (!user) {
+					throw new MoleculerClientError(
+						"User not found.",
+						404,
+						ERROR_CODES.USER_NOT_FOUND
+					);
+				}
+
+				return user;
+			},
+		},
+
+		/**
+		 * Update user status (admin only).
+		 */
+		updateUserStatus: {
+			auth: "required",
+			role: "admin",
+			params: {
+				id: "string",
+				status: { type: "enum", values: ["active", "inactive", "suspended"] },
+			},
+			async handler(ctx) {
+				const { id, status } = ctx.params;
+
+				const user = await ctx.call("user.model.get", { id });
+				if (!user) {
+					throw new MoleculerClientError(
+						"User not found.",
+						404,
+						ERROR_CODES.USER_NOT_FOUND
+					);
+				}
+
+				const updated = await ctx.call("user.model.update", { id, status });
+				return updated;
+			},
+		},
+
+		/**
+		 * Change the authenticated user's password.
+		 */
+		changePassword: {
+			auth: "required",
+			params: {
+				currentPassword: "string",
+				newPassword: "string|min:8",
+			},
+			async handler(ctx) {
+				const userId = ctx.meta.user.id;
+
+				// Get user with password via direct Mongoose access
+				const svc = this.broker.getLocalService("user.model");
+				if (!svc || !svc.adapter || !svc.adapter.model) {
+					throw new MoleculerClientError(
+						"Internal error.",
+						500,
+						ERROR_CODES.INTERNAL_ERROR
+					);
+				}
+
+				const user = await svc.adapter.model.findById(userId).lean();
+				if (!user) {
+					throw new MoleculerClientError(
+						"User not found.",
+						404,
+						ERROR_CODES.USER_NOT_FOUND
+					);
+				}
+
+				const isMatch = await bcrypt.compare(ctx.params.currentPassword, user.password);
+				if (!isMatch) {
+					throw new MoleculerClientError(
+						"Current password is incorrect.",
+						401,
+						ERROR_CODES.INVALID_CREDENTIALS
+					);
+				}
+
+				const hashedPassword = await bcrypt.hash(ctx.params.newPassword, SALT_ROUNDS);
+
+				await ctx.call("user.model.update", {
+					id: userId,
+					password: hashedPassword,
+					refreshToken: null, // Invalidate existing sessions
+				});
+
+				return { message: "Password changed successfully." };
+			},
+		},
+	},
+};

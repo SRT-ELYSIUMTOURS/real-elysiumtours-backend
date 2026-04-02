@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: elysium-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - elysium_mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: elysium-tours
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: elysium-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - elysium_redis_data:/data
+    restart: unless-stopped
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: elysium-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+volumes:
+  elysium_mongo_data:
+  elysium_redis_data:

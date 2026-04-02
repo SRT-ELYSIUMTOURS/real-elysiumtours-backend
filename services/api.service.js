@@ -1,0 +1,900 @@
+"use strict";
+
+const ApiGateway = require("moleculer-web");
+const { MoleculerClientError, MoleculerError } = require("moleculer").Errors;
+const jwt = require("jsonwebtoken");
+
+module.exports = {
+	name: "api",
+
+	mixins: [ApiGateway],
+
+	settings: {
+		port: process.env.PORT || 3001,
+		ip: "0.0.0.0",
+
+		cors: {
+			origin: process.env.CORS_ORIGIN || "*",
+			methods: (process.env.CORS_METHODS || "GET,POST,PUT,PATCH,DELETE").split(","),
+			credentials: process.env.CORS_CREDENTIALS !== "false",
+		},
+
+		rateLimit: {
+			limit: 100,
+			window: 15 * 60 * 1000,
+			headers: true,
+		},
+
+		bodyParsers: {
+			json: {
+				strict: false,
+				limit: "10mb",
+			},
+			urlencoded: {
+				extended: true,
+				limit: "10mb",
+			},
+		},
+
+		routes: [
+			// ─── Health Check (no auth) ───
+			{
+				path: "/health",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": function healthCheck(req, res) {
+						res.writeHead(200, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({
+							status: "ok",
+							timestamp: new Date().toISOString(),
+							service: "elysium-tours-api",
+							version: require("../package.json").version,
+						}));
+					},
+				},
+			},
+
+			// ─── Route 1: Auth (public) ───
+			{
+				path: "/api/v1/auth",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /register": "auth.register",
+					"POST /login": "auth.login",
+					"POST /verify-otp": "auth.verifyOTP",
+					"POST /refresh-token": "auth.refreshToken",
+					"POST /forgot-password": "auth.forgotPassword",
+					"POST /reset-password": "auth.resetPassword",
+					"POST /resend-otp": "auth.resendOTP",
+				},
+			},
+
+			// ─── Route 2: Users ───
+			{
+				path: "/api/v1/users",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /profile": "user.getProfile",
+					"PUT /profile": "user.updateProfile",
+					"PUT /change-password": "user.changePassword",
+					"GET /": "user.listUsers",
+					"GET /:id": "user.getUserById",
+					"PUT /:id/status": "user.updateUserStatus",
+				},
+			},
+
+			// ─── Route 3: Destinations ───
+			{
+				path: "/api/v1/destinations",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /search": "destination.search",
+					"GET /": "destination.list",
+					"GET /region/:region": "destination.listByRegion",
+					"GET /slug/:slug": "destination.getBySlug",
+					"GET /:destinationId/nearby-partners": "destination.findNearbyPartners",
+					"GET /:id": "destination.get",
+					"POST /": "destination.create",
+					"PUT /:id": "destination.update",
+					"PUT /:id/toggle": "destination.toggleActive",
+				},
+			},
+
+			// ─── Route 4: Hotel Partners ───
+			{
+				path: "/api/v1/partners/hotels",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "hotelPartner.list",
+					"GET /nearby": "hotelPartner.findNearby",
+					"GET /destination/:destinationId": "hotelPartner.getByDestination",
+					"GET /:id": "hotelPartner.get",
+					"POST /": "hotelPartner.create",
+					"PUT /:id": "hotelPartner.update",
+					"PUT /:id/commission": "hotelPartner.setCommission",
+					"PUT /:id/availability": "hotelPartner.updateAvailability",
+					"POST /:id/closeout-dates": "hotelPartner.addCloseOutDates",
+					"PUT /:id/toggle": "hotelPartner.toggleActive",
+				},
+			},
+
+			// ─── Route 5: Attraction Partners ───
+			{
+				path: "/api/v1/partners/attractions",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "attraction.list",
+					"GET /nearby": "attraction.findNearby",
+					"GET /destination/:destinationId": "attraction.getByDestination",
+					"GET /:id": "attraction.get",
+					"POST /": "attraction.create",
+					"PUT /:id": "attraction.update",
+					"PUT /:id/toggle": "attraction.toggleActive",
+				},
+			},
+
+			// ─── Route 6: Dining Partners ───
+			{
+				path: "/api/v1/partners/dining",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "dining.list",
+					"GET /nearby": "dining.findNearby",
+					"GET /destination/:destinationId": "dining.getByDestination",
+					"GET /:id": "dining.get",
+					"POST /": "dining.create",
+					"PUT /:id": "dining.update",
+					"PUT /:id/commission": "dining.setCommission",
+					"PUT /:id/toggle": "dining.toggleActive",
+				},
+			},
+
+			// ─── Route 7: Transport Partners ───
+			{
+				path: "/api/v1/partners/transport",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /providers": "transport.listProviders",
+					"GET /providers/:id": "transport.getProvider",
+					"POST /providers": "transport.registerProvider",
+					"PUT /providers/:id": "transport.updateProvider",
+					"PUT /providers/:id/toggle": "transport.toggleProviderActive",
+					"GET /vehicles": "transport.listVehicles",
+					"POST /vehicles": "transport.addVehicle",
+					"PUT /vehicles/:id": "transport.updateVehicle",
+					"GET /estimate": "transport.estimateTransportCost",
+				},
+			},
+
+			// ─── Route 8: Tours (Phase 2) ───
+			{
+				path: "/api/v1/tours",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /packages/search": "tourPackage.search",
+					"GET /packages": "tourPackage.list",
+					"GET /packages/:packageId/proximity-map": "tourPackage.getProximityMap",
+					"POST /packages/:packageId/view": "tourPackage.incrementViewCount",
+					"GET /packages/:id": "tourPackage.get",
+					"POST /packages": "tourPackage.create",
+					"PUT /packages/:id": "tourPackage.update",
+					"PUT /packages/:id/toggle": "tourPackage.toggleActive",
+					"POST /packages/:packageId/waitlist": "tourPackage.joinWaitlist",
+					"GET /packages/:packageId/waitlist": "tourPackage.getWaitlist",
+					"POST /dynamic/build": "dynamicTour.buildTourRequest",
+					"POST /dynamic/submit": "dynamicTour.submitForPricing",
+					"GET /dynamic/requests": "dynamicTour.getMyRequests",
+					"DELETE /dynamic/requests/:id": "dynamicTour.cancelRequest",
+				},
+			},
+
+			// ─── Route 9: Bookings (Phase 2) ───
+			{
+				path: "/api/v1/bookings",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"POST /": "booking.createBooking",
+					"GET /": "booking.listBookings",
+					"GET /:id": "booking.getBooking",
+					"PUT /:id/status": "booking.updateStatus",
+					"PUT /:id/cancel": "booking.cancelBooking",
+					"POST /:id/confirm-partner": "booking.confirmPartner",
+					"POST /:id/reject-partner": "booking.rejectPartner",
+					"GET /:id/substitutions/:partnerId": "booking.suggestSubstitution",
+					"POST /:id/accept-substitution": "booking.acceptSubstitution",
+				},
+			},
+
+			// ─── Route 10: Payments (Phase 2) ───
+			{
+				path: "/api/v1/payments",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"POST /initiate": "payment.initiatePayment",
+					"POST /verify": "payment.verifyPayment",
+					"POST /refund": "payment.refundPayment",
+					"GET /transactions": "payment.getTransactions",
+				},
+			},
+
+			// ─── Route 11: Notifications ───
+			{
+				path: "/api/v1/notifications",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "notification.listForUser",
+					"PUT /:id/read": "notification.markRead",
+				},
+			},
+
+			// ─── Route 12: Admin ───
+			{
+				path: "/api/v1/admin",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /dashboard": "admin.getDashboard",
+					"GET /templates": "template.list",
+					"POST /templates": "template.create",
+					"PUT /templates/:id": "template.update",
+					"POST /templates/seed": "template.seedDefaults",
+					"GET /contracts": "contract.listContracts",
+					"POST /contract-templates": "contract.createTemplate",
+					"PUT /contract-templates/:id": "contract.updateTemplate",
+					"GET /contract-templates": "contract.listTemplates",
+					"POST /contract-templates/seed": "contract.seedDefaultTemplates",
+					"GET /sla-metrics": "pricingDesk.getSLAMetrics",
+					"GET /analytics/bookings": "booking.getAnalytics",
+					"GET /analytics/occupancy": "booking.getOccupancyReport",
+					"GET /analytics/payments": "payment.getPaymentAnalytics",
+					"GET /analytics/revenue": "payment.getRevenueByPeriod",
+				},
+			},
+
+			// ─── Route 13: Pricing Desk (Phase 3) ───
+			{
+				path: "/api/v1/pricing-desk",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /queue": "pricingDesk.getQueue",
+					"GET /quotes/:quoteId": "pricingDesk.getQuoteDetail",
+					"POST /quotes/:quoteId/assign": "pricingDesk.assignQuote",
+					"POST /quotes/:quoteId/submit": "pricingDesk.submitQuote",
+					"POST /quotes/:quoteId/accept": "pricingDesk.customerAccept",
+					"POST /quotes/:quoteId/reject": "pricingDesk.customerReject",
+					"POST /quotes/:quoteId/revise": "pricingDesk.reviseQuote",
+					"GET /sla-metrics": "pricingDesk.getSLAMetrics",
+				},
+			},
+
+			// ─── Route 14: Payment Plans (Phase 3) ───
+			{
+				path: "/api/v1/payment-plans",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /booking/:bookingId": "paymentPlan.getPlan",
+					"GET /:id": "paymentPlan.getPlanById",
+					"GET /:paymentPlanId/milestones": "paymentPlan.getMilestones",
+					"GET /booking/:bookingId/next-due": "paymentPlan.getNextDueMilestone",
+					"POST /milestones/:milestoneId/pay": "paymentPlan.payMilestone",
+				},
+			},
+
+			// ─── Route 15: Contracts (Phase 3) ───
+			{
+				path: "/api/v1/contracts",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /booking/:bookingId": "contract.getByBooking",
+					"POST /:contractId/send": "contract.sendToCustomer",
+					"POST /accept": "contract.customerAccept",
+					"POST /:contractId/reject": "contract.customerReject",
+					"GET /verify/:bookingId": "contract.verifyAcceptance",
+					"GET /": "contract.listContracts",
+				},
+			},
+
+			// ─── Route 16: Interests (Phase 3) ───
+			{
+				path: "/api/v1/interests",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"POST /": "interest.submit",
+					"GET /mine": "interest.listMine",
+					"GET /": "interest.list",
+					"GET /count": "interest.getInterestCount",
+					"PUT /:id/status": "interest.updateStatus",
+					"PUT /:id/withdraw": "interest.withdraw",
+					"POST /bulk-invite/:tourPackageId": "interest.convertToBulkInvitation",
+				},
+			},
+
+			// ─── Route: Reviews ───
+			{
+				path: "/api/v1/reviews",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /tour/:tourPackageId": "review.listByTour",
+					"GET /stats/:tourPackageId": "review.getStats",
+					"POST /": "review.create",
+					"PUT /:id": "review.update",
+					"DELETE /:id": "review.delete",
+					"POST /:reviewId/response": "review.addResponse",
+				},
+			},
+
+			// ─── Route: Contact & Newsletter ───
+			{
+				path: "/api/v1/contact",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /": "contact.submit",
+					"POST /newsletter": "contact.submitNewsletter",
+				},
+			},
+
+			// ══════════════════════════════════════
+			// API v2 — Multi-Tenant Routes
+			// ══════════════════════════════════════
+
+			// ─── v2 Auth ───
+			{
+				path: "/api/v2/auth",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /register": "auth.register",
+					"POST /login": "auth.login",
+					"POST /verify-otp": "auth.verifyOTP",
+					"POST /refresh-token": "auth.refreshToken",
+					"POST /forgot-password": "auth.forgotPassword",
+					"POST /reset-password": "auth.resetPassword",
+					"POST /resend-otp": "auth.resendOTP",
+				},
+			},
+
+			// ─── v2 Users ───
+			{
+				path: "/api/v2/users",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /profile": "user.getProfile",
+					"PUT /profile": "user.updateProfile",
+					"PUT /change-password": "user.changePassword",
+					"GET /": "user.listUsers",
+					"GET /:id": "user.getUserById",
+					"PUT /:id/status": "user.updateUserStatus",
+				},
+			},
+
+			// ─── v2 Destinations ───
+			{
+				path: "/api/v2/destinations",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /search": "destination.search",
+					"GET /": "destination.list",
+					"GET /region/:region": "destination.listByRegion",
+					"GET /slug/:slug": "destination.getBySlug",
+					"GET /:destinationId/nearby-partners": "destination.findNearbyPartners",
+					"GET /:id": "destination.get",
+					"POST /": "destination.create",
+					"PUT /:id": "destination.update",
+					"PUT /:id/toggle": "destination.toggleActive",
+				},
+			},
+
+			// ─── v2 Tours ───
+			{
+				path: "/api/v2/tours",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /packages/search": "tourPackage.search",
+					"GET /packages": "tourPackage.list",
+					"GET /packages/:packageId/proximity-map": "tourPackage.getProximityMap",
+					"POST /packages/:packageId/view": "tourPackage.incrementViewCount",
+					"GET /packages/:id": "tourPackage.get",
+					"POST /packages": "tourPackage.create",
+					"PUT /packages/:id": "tourPackage.update",
+					"PUT /packages/:id/toggle": "tourPackage.toggleActive",
+					"POST /packages/:packageId/waitlist": "tourPackage.joinWaitlist",
+					"GET /packages/:packageId/waitlist": "tourPackage.getWaitlist",
+					"POST /dynamic/build": "dynamicTour.buildTourRequest",
+					"POST /dynamic/submit": "dynamicTour.submitForPricing",
+					"GET /dynamic/requests": "dynamicTour.getMyRequests",
+					"DELETE /dynamic/requests/:id": "dynamicTour.cancelRequest",
+				},
+			},
+
+			// ─── v2 Bookings ───
+			{
+				path: "/api/v2/bookings",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"POST /": "booking.createBooking",
+					"GET /": "booking.listBookings",
+					"GET /:id": "booking.getBooking",
+					"PUT /:id/status": "booking.updateStatus",
+					"PUT /:id/cancel": "booking.cancelBooking",
+					"POST /:id/confirm-partner": "booking.confirmPartner",
+					"POST /:id/reject-partner": "booking.rejectPartner",
+					"GET /:id/substitutions/:partnerId": "booking.suggestSubstitution",
+					"POST /:id/accept-substitution": "booking.acceptSubstitution",
+				},
+			},
+
+			// ─── v2 Payments ───
+			{
+				path: "/api/v2/payments",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"POST /initiate": "payment.initiatePayment",
+					"POST /verify": "payment.verifyPayment",
+					"POST /refund": "payment.refundPayment",
+					"GET /transactions": "payment.getTransactions",
+				},
+			},
+
+			// ─── v2 Partners (Hotels) ───
+			{
+				path: "/api/v2/partners/hotels",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /": "hotelPartner.list",
+					"GET /nearby": "hotelPartner.findNearby",
+					"GET /destination/:destinationId": "hotelPartner.getByDestination",
+					"GET /:id": "hotelPartner.get",
+					"POST /": "hotelPartner.create",
+					"PUT /:id": "hotelPartner.update",
+					"PUT /:id/commission": "hotelPartner.setCommission",
+					"PUT /:id/availability": "hotelPartner.updateAvailability",
+					"POST /:id/closeout-dates": "hotelPartner.addCloseOutDates",
+					"PUT /:id/toggle": "hotelPartner.toggleActive",
+				},
+			},
+
+			// ─── v2 CMS / Blog / Content ───
+			{
+				path: "/api/v2/cms",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /blog": "cms.listBlogPosts",
+					"GET /blog/:slug": "cms.getBlogPost",
+					"GET /faqs": "cms.listFAQs",
+					"GET /testimonials": "cms.listTestimonials",
+					"GET /gallery": "cms.listGallery",
+					"GET /about": "cms.getAboutContent",
+					"GET /settings": "cms.getSiteSettings",
+				},
+			},
+
+			// ─── v2 Reviews ───
+			{
+				path: "/api/v2/reviews",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /tour/:tourPackageId": "review.listByTour",
+					"GET /stats/:tourPackageId": "review.getStats",
+					"POST /": "review.create",
+					"PUT /:id": "review.update",
+					"DELETE /:id": "review.delete",
+					"POST /:reviewId/response": "review.addResponse",
+				},
+			},
+
+			// ─── v2 Contact & Newsletter ───
+			{
+				path: "/api/v2/contact",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /": "contact.submit",
+					"POST /newsletter": "contact.submitNewsletter",
+				},
+			},
+
+			// ─── v2 Platform Admin (Super Admin only) ───
+			{
+				path: "/api/v2/platform",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /organizations": "superAdmin.listOrganizations",
+					"GET /organizations/:id": "superAdmin.getOrganization",
+					"POST /organizations": "superAdmin.createOrganization",
+					"PUT /organizations/:id/suspend": "superAdmin.suspendOrganization",
+					"PUT /organizations/:id/activate": "superAdmin.activateOrganization",
+					"GET /health": "superAdmin.getPlatformHealth",
+					"GET /revenue": "superAdmin.getCrossOrgRevenue",
+					"GET /analytics": "superAdmin.getCrossOrgAnalytics",
+					"GET /organizations/:id/config": "organization.getConfig",
+					"PUT /organizations/:id/config": "organization.setConfig",
+					"PATCH /organizations/:id/config": "organization.mergeConfig",
+					"DELETE /organizations/:id/config-key": "organization.deleteConfigKey",
+				},
+			},
+
+			// ─── v2 Contracts ───
+			{
+				path: "/api/v2/contracts",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /booking/:bookingId": "contract.getByBooking",
+					"POST /:contractId/send": "contract.sendToCustomer",
+					"POST /accept": "contract.customerAccept",
+					"POST /:contractId/reject": "contract.customerReject",
+					"GET /verify/:bookingId": "contract.verifyAcceptance",
+					"GET /": "contract.listContracts",
+				},
+			},
+
+			// ─── v2 Interests ───
+			{
+				path: "/api/v2/interests",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"POST /": "interest.submit",
+					"GET /mine": "interest.listMine",
+					"GET /": "interest.list",
+					"GET /count": "interest.getInterestCount",
+					"PUT /:id/status": "interest.updateStatus",
+					"PUT /:id/withdraw": "interest.withdraw",
+					"POST /bulk-invite/:tourPackageId": "interest.convertToBulkInvitation",
+				},
+			},
+
+			// ─── v2 Notifications ───
+			{
+				path: "/api/v2/notifications",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /": "notification.listForUser",
+					"PUT /:id/read": "notification.markRead",
+				},
+			},
+
+			// ─── v2 Payment Plans ───
+			{
+				path: "/api/v2/payment-plans",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /booking/:bookingId": "paymentPlan.getPlan",
+					"GET /:id": "paymentPlan.getPlanById",
+					"GET /:paymentPlanId/milestones": "paymentPlan.getMilestones",
+					"GET /booking/:bookingId/next-due": "paymentPlan.getNextDueMilestone",
+					"POST /milestones/:milestoneId/pay": "paymentPlan.payMilestone",
+				},
+			},
+
+			// ─── v2 Pricing Desk ───
+			{
+				path: "/api/v2/pricing-desk",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /queue": "pricingDesk.getQueue",
+					"GET /quotes/:quoteId": "pricingDesk.getQuoteDetail",
+					"POST /quotes/:quoteId/assign": "pricingDesk.assignQuote",
+					"POST /quotes/:quoteId/submit": "pricingDesk.submitQuote",
+					"POST /quotes/:quoteId/accept": "pricingDesk.customerAccept",
+					"POST /quotes/:quoteId/reject": "pricingDesk.customerReject",
+					"POST /quotes/:quoteId/revise": "pricingDesk.reviseQuote",
+					"GET /sla-metrics": "pricingDesk.getSLAMetrics",
+				},
+			},
+
+			// ─── v2 Admin Dashboard ───
+			{
+				path: "/api/v2/admin",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /dashboard": "admin.getDashboard",
+					"GET /templates": "template.list",
+					"POST /templates": "template.create",
+					"PUT /templates/:id": "template.update",
+					"POST /templates/seed": "template.seedDefaults",
+					"GET /contracts": "contract.listContracts",
+					"POST /contract-templates": "contract.createTemplate",
+					"PUT /contract-templates/:id": "contract.updateTemplate",
+					"GET /contract-templates": "contract.listTemplates",
+					"POST /contract-templates/seed": "contract.seedDefaultTemplates",
+					"GET /sla-metrics": "pricingDesk.getSLAMetrics",
+					"GET /analytics/bookings": "booking.getAnalytics",
+					"GET /analytics/occupancy": "booking.getOccupancyReport",
+					"GET /analytics/payments": "payment.getPaymentAnalytics",
+					"GET /analytics/revenue": "payment.getRevenueByPeriod",
+				},
+			},
+
+			// ─── v2 Partners (Attractions) ───
+			{
+				path: "/api/v2/partners/attractions",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /": "attraction.list",
+					"GET /nearby": "attraction.findNearby",
+					"GET /destination/:destinationId": "attraction.getByDestination",
+					"GET /:id": "attraction.get",
+					"POST /": "attraction.create",
+					"PUT /:id": "attraction.update",
+					"PUT /:id/toggle": "attraction.toggleActive",
+				},
+			},
+
+			// ─── v2 Partners (Dining) ───
+			{
+				path: "/api/v2/partners/dining",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /": "dining.list",
+					"GET /nearby": "dining.findNearby",
+					"GET /destination/:destinationId": "dining.getByDestination",
+					"GET /:id": "dining.get",
+					"POST /": "dining.create",
+					"PUT /:id": "dining.update",
+					"PUT /:id/commission": "dining.setCommission",
+					"PUT /:id/toggle": "dining.toggleActive",
+				},
+			},
+
+			// ─── v2 Partners (Transport) ───
+			{
+				path: "/api/v2/partners/transport",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /providers": "transport.listProviders",
+					"GET /providers/:id": "transport.getProvider",
+					"POST /providers": "transport.registerProvider",
+					"PUT /providers/:id": "transport.updateProvider",
+					"PUT /providers/:id/toggle": "transport.toggleProviderActive",
+					"GET /vehicles": "transport.listVehicles",
+					"POST /vehicles": "transport.addVehicle",
+					"PUT /vehicles/:id": "transport.updateVehicle",
+					"GET /estimate": "transport.estimateTransportCost",
+				},
+			},
+
+			// ─── v2 Media ───
+			{
+				path: "/api/v2/media",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"POST /upload": "stream:media.upload",
+					"POST /upload-url": "media.uploadFromUrl",
+					"DELETE /:publicId": "media.delete",
+					"GET /": "media.list",
+					"GET /signed-url/:publicId": "media.getSignedUrl",
+				},
+				busboyConfig: {
+					limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+				},
+			},
+
+			// ─── Route 17: CMS / Blog / Content ───
+			{
+				path: "/api/v1/cms",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /blog": "cms.listBlogPosts",
+					"GET /blog/:slug": "cms.getBlogPost",
+					"GET /faqs": "cms.listFAQs",
+					"GET /testimonials": "cms.listTestimonials",
+					"GET /gallery": "cms.listGallery",
+					"GET /about": "cms.getAboutContent",
+					"GET /settings": "cms.getSiteSettings",
+				},
+			},
+
+			// ─── Route 18: Webhooks (no auth) ───
+			{
+				path: "/api/v1/webhooks",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /paystack": "payment.webhookHandler",
+				},
+				bodyParsers: {
+					json: true,
+				},
+			},
+
+			// ─── Route 18: Media Upload (Phase 4) ───
+			{
+				path: "/api/v1/media",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"POST /upload": "stream:media.upload",
+					"POST /upload-url": "media.uploadFromUrl",
+					"DELETE /:publicId": "media.delete",
+					"GET /": "media.list",
+					"GET /signed-url/:publicId": "media.getSignedUrl",
+				},
+				// Enable multipart for file uploads
+				busboyConfig: {
+					limits: {
+						files: 1,
+						fileSize: 10 * 1024 * 1024, // 10MB
+					},
+				},
+			},
+		],
+
+		// Global error handler
+		onError(req, res, err) {
+			res.setHeader("Content-Type", "application/json; charset=utf-8");
+
+			// err.code can be a Mongo error code (11000) or non-HTTP number.
+			// Only use it as HTTP status if it's a valid 3-digit HTTP code.
+			let statusCode = 500;
+			if (typeof err.code === "number" && err.code >= 100 && err.code < 600) {
+				statusCode = err.code;
+			}
+
+			// Handle common Mongo errors
+			let errorType = err.type || "INTERNAL_ERROR";
+			let message = err.message || "An unexpected error occurred.";
+			if (err.code === 11000 || (err.message && err.message.includes("E11000"))) {
+				statusCode = 409;
+				errorType = "DUPLICATE_KEY";
+				message = "A record with this value already exists.";
+			}
+
+			res.writeHead(statusCode);
+			res.end(
+				JSON.stringify({
+					success: false,
+					code: errorType,
+					message,
+					data: err.data || null,
+				})
+			);
+		},
+	},
+
+	methods: {
+		/**
+		 * Authenticate the request.
+		 * Extracts JWT from the Authorization header and decodes the user.
+		 * Does NOT throw if token is missing or invalid — lets service-level auth decide.
+		 *
+		 * @param {Context} ctx
+		 * @param {Object} route
+		 * @param {IncomingRequest} req
+		 * @returns {Promise<Object|null>}
+		 */
+		async authenticate(ctx, route, req) {
+			const authHeader = req.headers["authorization"];
+
+			if (!authHeader) {
+				return null;
+			}
+
+			const parts = authHeader.split(" ");
+			if (parts.length !== 2 || parts[0] !== "Bearer") {
+				return null;
+			}
+
+			const token = parts[1];
+
+			try {
+				const secret = process.env.JWT_SECRET || "elysium-secret-key";
+				const decoded = jwt.verify(token, secret);
+
+				ctx.meta.user = {
+					id: decoded.id,
+					email: decoded.email,
+					role: decoded.role,
+					organizationId: decoded.organizationId || null,
+				};
+
+				return ctx.meta.user;
+			} catch (err) {
+				// Token invalid or expired — don't throw, let middleware handle it
+				return null;
+			}
+		},
+
+		/**
+		 * Authorize the request.
+		 * Checks if the resolved action requires auth and blocks unauthenticated users.
+		 * This runs AFTER authenticate() and BEFORE the action handler.
+		 */
+		async authorize(ctx, route, req) {
+			const action = ctx.action;
+			if (!action) return;
+
+			// If action requires auth and user is not set, reject
+			if (action.auth === "required" && !ctx.meta.user) {
+				throw new MoleculerClientError(
+					"Authentication required.",
+					401,
+					"UNAUTHORIZED"
+				);
+			}
+
+			// If action requires a specific role, check it
+			if (action.role && ctx.meta.user) {
+				const userRole = ctx.meta.user.role;
+				// super_admin can access anything
+				if (userRole === "super_admin") return;
+				if (action.role === "super_admin") {
+					throw new MoleculerClientError("Super admin access required.", 403, "FORBIDDEN");
+				}
+				if (action.role === "admin" && userRole !== "admin") {
+					throw new MoleculerClientError("Admin access required.", 403, "FORBIDDEN");
+				}
+				if (action.role === "staff" && userRole !== "staff" && userRole !== "admin") {
+					throw new MoleculerClientError("Staff access required.", 403, "FORBIDDEN");
+				}
+			}
+		},
+	},
+};
