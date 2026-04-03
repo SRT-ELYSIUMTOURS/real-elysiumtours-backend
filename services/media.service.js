@@ -32,10 +32,17 @@ module.exports = {
 						folder: folder || "elysium-tours",
 					});
 
+					// Cloudinary may return raw/upload for streams — fix URL for images
+					let imageUrl = result.secure_url;
+					if (result.resource_type === "raw" && result.width && result.height) {
+						imageUrl = imageUrl.replace("/raw/upload/", "/image/upload/");
+					}
+
 					return {
 						success: true,
-						url: result.secure_url,
+						url: imageUrl,
 						publicId: result.public_id,
+						resourceType: result.resource_type,
 						width: result.width,
 						height: result.height,
 						format: result.format,

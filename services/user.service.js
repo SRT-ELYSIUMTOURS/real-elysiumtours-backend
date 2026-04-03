@@ -12,6 +12,66 @@ module.exports = {
 
 	actions: {
 		/**
+		 * Create a staff or admin user (admin only).
+		 */
+		createStaffUser: {
+			auth: "required",
+			role: "admin",
+			params: {
+				email: "email",
+				password: "string",
+				firstName: "string",
+				lastName: "string",
+				phone: { type: "string", optional: true },
+				role: { type: "enum", values: ["staff", "admin"], optional: true },
+			},
+			async handler(ctx) {
+				const { email, password, firstName, lastName, phone, role: userRole } = ctx.params;
+
+				// Check if email already exists
+				const existing = await ctx.call("user.model.find", { query: { email: email.toLowerCase() } });
+				if (existing && existing.length > 0) {
+					throw new MoleculerClientError(
+						"A user with this email already exists.",
+						409,
+						"EMAIL_ALREADY_EXISTS"
+					);
+				}
+
+				const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+				const createParams = {
+					email: email.toLowerCase(),
+					password: hashedPassword,
+					firstName,
+					lastName,
+					phone: phone || undefined,
+					role: userRole || "staff",
+					isVerified: true,
+					status: "active",
+				};
+
+				// If caller has an orgId, assign user to that org
+				if (ctx.meta.organizationId) {
+					createParams.organizationId = ctx.meta.organizationId.toString();
+				}
+
+				const user = await ctx.call("user.model.create", createParams, { meta: ctx.meta });
+
+				// Return without sensitive fields
+				return {
+					id: user._id,
+					email: user.email,
+					firstName: user.firstName,
+					lastName: user.lastName,
+					role: user.role,
+					status: user.status,
+					organizationId: user.organizationId,
+				};
+			},
+		},
+
+		/**
 		 * Get the authenticated user's profile.
 		 */
 		getProfile: {
