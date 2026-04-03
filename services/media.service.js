@@ -26,15 +26,27 @@ module.exports = {
 			role: "staff",
 			async handler(ctx) {
 				try {
-					const { folder, entityType, entityId } = ctx.meta.$multipart || {};
+					const multipart = ctx.meta.$multipart || {};
+					const { folder, entityType, entityId } = multipart;
+					const filename = multipart.filename || ctx.meta.filename || "";
+					const mimetype = multipart.mimetype || ctx.meta.mimetype || "";
+
+					// Determine resource type from file extension or mime
+					let resourceType = "auto";
+					const ext = filename.split(".").pop()?.toLowerCase() || "";
+					const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif", "tiff"];
+					if (imageExts.includes(ext) || mimetype.startsWith("image/")) {
+						resourceType = "image";
+					}
 
 					const result = await uploadStream(ctx.params, {
 						folder: folder || "elysium-tours",
+						resourceType,
 					});
 
-					// Cloudinary may return raw/upload for streams — fix URL for images
+					// Fallback: if Cloudinary still returns raw, force image URL for known image formats
 					let imageUrl = result.secure_url;
-					if (result.resource_type === "raw" && result.width && result.height) {
+					if (result.resource_type === "raw" && (imageExts.includes(result.format) || imageExts.includes(ext))) {
 						imageUrl = imageUrl.replace("/raw/upload/", "/image/upload/");
 					}
 
