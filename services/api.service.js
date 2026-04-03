@@ -521,6 +521,41 @@ module.exports = {
 				},
 			},
 
+			// ─── v2 Gallery ───
+			{
+				path: "/api/v2/gallery",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /": "gallery.list",
+					"GET /:id": "gallery.get",
+					"POST /": "gallery.create",
+					"PUT /:id": "gallery.update",
+					"DELETE /:id": "gallery.remove",
+					"PUT /:id/toggle": "gallery.togglePublished",
+				},
+			},
+
+			// ─── v2 Tour Guides ───
+			{
+				path: "/api/v2/guides",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /": "tourGuide.list",
+					"GET /:id": "tourGuide.get",
+					"POST /": "tourGuide.create",
+					"PUT /:id": "tourGuide.update",
+					"PUT /:id/toggle": "tourGuide.toggleActive",
+				},
+			},
+
 			// ─── v2 CMS / Blog / Content ───
 			{
 				path: "/api/v2/cms",
@@ -760,6 +795,34 @@ module.exports = {
 				},
 				busboyConfig: {
 					limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+				},
+			},
+
+			// ─── Route: Gallery ───
+			{
+				path: "/api/v1/gallery",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "gallery.list",
+					"GET /:id": "gallery.get",
+					"POST /": "gallery.create",
+					"PUT /:id": "gallery.update",
+					"DELETE /:id": "gallery.remove",
+					"PUT /:id/toggle": "gallery.togglePublished",
+				},
+			},
+			// ─── Route: Tour Guides ───
+			{
+				path: "/api/v1/guides",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "tourGuide.list",
+					"GET /:id": "tourGuide.get",
+					"POST /": "tourGuide.create",
+					"PUT /:id": "tourGuide.update",
+					"PUT /:id/toggle": "tourGuide.toggleActive",
 				},
 			},
 

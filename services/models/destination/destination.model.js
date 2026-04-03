@@ -40,6 +40,18 @@ const DestinationSchema = new mongoose.Schema(
 			type: [String],
 			default: [],
 		},
+		country: { type: String, required: true, default: "Ghana" },
+		subtitle: { type: String },
+		coverImage: { type: String },
+		tourCount: { type: Number, default: 0 },
+		weather: {
+			avgTemp: { type: Number },
+			rainyMonths: { type: [String], default: [] },
+			bestMonths: { type: [String], default: [] },
+		},
+		bestTimeToVisit: { type: String },
+		travelTips: { type: [String], default: [] },
+		aboutText: { type: String },
 		isActive: {
 			type: Boolean,
 			default: true,
@@ -56,15 +68,17 @@ DestinationSchema.index({ slug: 1, organizationId: 1 }, { unique: true, partialF
 DestinationSchema.index({ name: 1, organizationId: 1 }, { unique: true, partialFilterExpression: { organizationId: { $exists: true } } });
 DestinationSchema.index({ region: 1 });
 DestinationSchema.index({ isActive: 1 });
+DestinationSchema.index({ country: 1 });
 DestinationSchema.index({ location: "2dsphere" });
 
 DestinationSchema.index({
 	name: "text",
 	description: "text",
 	region: "text",
+	country: "text",
 	"highlights": "text",
 }, {
-	weights: { name: 10, region: 5, description: 3, highlights: 2 },
+	weights: { name: 10, country: 5, region: 5, description: 3, highlights: 2 },
 	name: "destination_text_search",
 });
 
@@ -85,6 +99,14 @@ module.exports = {
 			"location",
 			"images",
 			"highlights",
+			"country",
+			"subtitle",
+			"coverImage",
+			"tourCount",
+			"weather",
+			"bestTimeToVisit",
+			"travelTips",
+			"aboutText",
 			"isActive",
 			"createdAt",
 			"updatedAt",
@@ -97,6 +119,14 @@ module.exports = {
 			gpsCoords: "object|optional",
 			images: "array|optional",
 			highlights: "array|optional",
+			country: "string|optional",
+			subtitle: "string|optional",
+			coverImage: "string|optional",
+			tourCount: "number|optional",
+			weather: "object|optional",
+			bestTimeToVisit: "string|optional",
+			travelTips: "array|optional",
+			aboutText: "string|optional",
 			isActive: "boolean|optional",
 		},
 	},

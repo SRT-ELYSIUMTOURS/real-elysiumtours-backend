@@ -32,6 +32,8 @@ const MONGOOSE_COLLECTIONS = [
 	"reviews",
 	"subscribers",
 	"waitlistentries",
+	"galleryitems",
+	"tourguides",
 ];
 
 // Shared connection promise — ensures a single mongoose.connect() call

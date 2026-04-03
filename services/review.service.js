@@ -180,7 +180,15 @@ module.exports = {
 				if (title !== undefined) updateData.title = title;
 				if (comment !== undefined) updateData.comment = comment;
 
-				return ctx.call("review.model.update", updateData);
+				const updated = await ctx.call("review.model.update", updateData);
+
+				ctx.emit("review.updated", {
+					reviewId: id,
+					tourPackageId: review.tourPackageId.toString(),
+					rating: updated.rating,
+				});
+
+				return updated;
 			},
 		},
 
@@ -219,7 +227,15 @@ module.exports = {
 					);
 				}
 
-				return ctx.call("review.model.remove", { id });
+				const tourPackageId = review.tourPackageId.toString();
+				const result = await ctx.call("review.model.remove", { id });
+
+				ctx.emit("review.deleted", {
+					reviewId: id,
+					tourPackageId,
+				});
+
+				return result;
 			},
 		},
 
@@ -274,6 +290,29 @@ module.exports = {
 	},
 
 	methods: {
+		/**
+		 * Recalculate and cache the average rating on the tour package.
+		 * Called by review.created / review.updated / review.deleted events.
+		 * @param {String} tourPackageId
+		 */
+		async recalculateRating(tourPackageId) {
+			const reviews = await this.broker.call("review.model.find", {
+				query: { tourPackageId, isPublished: true },
+			});
+
+			const count = reviews.length;
+			const avg = count > 0
+				? reviews.reduce((sum, r) => sum + r.rating, 0) / count
+				: 0;
+
+			// Update the tour package with cached rating
+			await this.broker.call("tourPackage.model.update", {
+				id: tourPackageId.toString(),
+				rating: Math.round(avg * 10) / 10,
+				reviewCount: count,
+			}).catch(err => this.logger.error("Failed to update tour rating:", err));
+		},
+
 		/**
 		 * Calculate time-based weight for a review.
 		 * Recent reviews are weighted higher (Booking.com pattern).
@@ -368,5 +407,21 @@ module.exports = {
 		},
 	},
 
-	events: {},
+	events: {
+		"review.created": {
+			async handler(ctx) {
+				await this.recalculateRating(ctx.params.tourPackageId);
+			},
+		},
+		"review.updated": {
+			async handler(ctx) {
+				await this.recalculateRating(ctx.params.tourPackageId);
+			},
+		},
+		"review.deleted": {
+			async handler(ctx) {
+				await this.recalculateRating(ctx.params.tourPackageId);
+			},
+		},
+	},
 };

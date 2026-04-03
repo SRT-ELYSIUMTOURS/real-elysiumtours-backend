@@ -5,11 +5,13 @@ const BOOKING_TRANSITIONS = {
   pending_partner_confirmation: ["pending_payment", "cancelled"],
   pending_payment: ["payment_processing", "cancelled"],
   payment_processing: ["confirmed", "pending_payment"], // confirmed on success, back to pending on failure
-  confirmed: ["tour_scheduled", "cancelled_with_refund"],
+  confirmed: ["tour_scheduled", "fully_paid", "cancelled_with_refund"],
   tour_scheduled: ["tour_in_progress"],
   tour_in_progress: ["tour_completed"],
   tour_completed: ["review_requested"],
   review_requested: [], // terminal state
+  fully_paid: ["tour_scheduled"],
+  cancellation_overdue: ["cancelled"],
   cancelled: [],        // terminal state
   cancelled_with_refund: [], // terminal state
 };
