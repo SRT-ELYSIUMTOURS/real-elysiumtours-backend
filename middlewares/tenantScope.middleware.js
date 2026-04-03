@@ -53,8 +53,8 @@ module.exports = {
 	// ─── Hook 2: Auto-inject org scoping into model service calls ───
 	call(next) {
 		return function tenantScopeCall(actionName, params, opts) {
-			// Only scope calls to *.model.* services (the data layer)
-			if (!actionName.includes(".model.")) {
+			// actionName may be a string or an object — only process strings
+			if (typeof actionName !== "string" || !actionName.includes(".model.")) {
 				return next(actionName, params, opts);
 			}
 
