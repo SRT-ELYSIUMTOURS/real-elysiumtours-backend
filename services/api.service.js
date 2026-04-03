@@ -263,6 +263,7 @@ module.exports = {
 				aliases: {
 					"GET /dashboard": "admin.getDashboard",
 					"GET /templates": "template.list",
+					"GET /templates/:id": "template.get",
 					"POST /templates": "template.create",
 					"PUT /templates/:id": "template.update",
 					"POST /templates/seed": "template.seedDefaults",
@@ -729,6 +730,7 @@ module.exports = {
 				aliases: {
 					"GET /dashboard": "admin.getDashboard",
 					"GET /templates": "template.list",
+					"GET /templates/:id": "template.get",
 					"POST /templates": "template.create",
 					"PUT /templates/:id": "template.update",
 					"POST /templates/seed": "template.seedDefaults",
