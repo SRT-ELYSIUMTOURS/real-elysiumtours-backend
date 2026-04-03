@@ -471,8 +471,8 @@ module.exports = {
 
 				const query = {};
 
-				// Scope to customer if not admin
-				if (user.role !== "admin") {
+				// Scope to customer if not admin/super_admin/staff
+				if (user.role !== "admin" && user.role !== "super_admin" && user.role !== "staff") {
 					query.customerId = user.id;
 				}
 
