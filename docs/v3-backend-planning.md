@@ -38,8 +38,18 @@
 | `heroMainImage` | Main hero image | `images[0]` | DERIVED |
 | `itinerary[].activities[]` | Day-by-day activities | Yes | OK |
 
+### Image fields gap:
+Backend has `images: [String]` (flat gallery array). Frontend TourDetailPage needs:
+- `coverImage` — main hero image (left panel, 856x717)
+- `heroImages: [String]` — 2 secondary hero images (top-right, bottom-right stacked)
+- `images[]` — full gallery (exists, used for "3 of 24 images" modal)
+
+Convention: add `coverImage` + `heroImages` to model. For cards, use `coverImage` or `images[0]`.
+
 ### Fields to add to TourPackage model:
 ```
+coverImage: String (main card/hero image)
+heroImages: [String] (secondary hero images for detail page layout)
 rating: Number (aggregated from reviews, cached)
 reviewCount: Number (aggregated, cached)
 tags: [String] (e.g., ["Cultural", "Heritage", "Diaspora"])
@@ -76,15 +86,23 @@ difficulty: String enum ["easy", "moderate", "challenging"]
 | `bestTimeToVisit` | Season info | **NO** | MISSING |
 | `travelTips` | Tips section | **NO** | MISSING |
 
+### Image fields gap:
+Backend has `images: [String]` (flat gallery array). Frontend needs:
+- `coverImage` — single hero/banner for destination detail page
+- `image` for cards is derived from `coverImage` or `images[0]`
+
+Convention: add `coverImage` to model, API returns `coverImage` for cards, `images` for gallery.
+
 ### Fields to add to Destination model:
 ```
 country: String, required (e.g., "Ghana", "Senegal")
-subtitle: String
+subtitle: String (tagline for cards e.g., "Discover Ghana's most captivating destinations")
+coverImage: String (hero/banner image, separate from gallery)
 tourCount: Number (cached aggregation)
 weather: { avgTemp: Number, rainyMonths: [String], bestMonths: [String] }
 bestTimeToVisit: String
 travelTips: [String]
-coverImage: String (featured/hero image separate from gallery)
+aboutText: String (longer "about" text for detail page)
 ```
 
 ---
