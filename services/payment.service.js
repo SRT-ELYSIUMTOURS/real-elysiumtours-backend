@@ -495,6 +495,53 @@ module.exports = {
 		},
 
 		/**
+		 * Get a single payment by ID.
+		 * Customers can only see their own payments; admins/staff see all.
+		 */
+		getPayment: {
+			auth: "required",
+			params: {
+				id: "string",
+			},
+			async handler(ctx) {
+				const { id } = ctx.params;
+				const user = ctx.meta.user;
+
+				const payment = await ctx.call(
+					"payment.model.get",
+					{ id },
+					{ meta: ctx.meta }
+				).catch(() => null);
+
+				if (!payment) {
+					throw new MoleculerClientError(
+						"Payment not found.",
+						404,
+						ERROR_CODES.PAYMENT_NOT_FOUND,
+						{ id }
+					);
+				}
+
+				// Scope to customer if not admin/super_admin/staff
+				if (user.role !== "admin" && user.role !== "super_admin" && user.role !== "staff") {
+					const paymentCustomerId = payment.customerId?.toString
+						? payment.customerId.toString()
+						: payment.customerId;
+					if (paymentCustomerId !== user.id) {
+						throw new MoleculerClientError(
+							"You do not have access to this payment.",
+							403,
+							ERROR_CODES.FORBIDDEN,
+							{ id }
+						);
+					}
+				}
+
+				return payment;
+			},
+		},
+
+		/**
 		 * Get a payment by its transaction reference (internal use).
 		 */
 		getPaymentByRef: {

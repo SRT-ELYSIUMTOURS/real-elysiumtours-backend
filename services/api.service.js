@@ -240,6 +240,7 @@ module.exports = {
 					"POST /verify": "payment.verifyPayment",
 					"POST /refund": "payment.refundPayment",
 					"GET /transactions": "payment.getTransactions",
+					"GET /transactions/:id": "payment.getPayment",
 				},
 			},
 
@@ -267,6 +268,7 @@ module.exports = {
 					"POST /templates/seed": "template.seedDefaults",
 					"GET /contracts": "contract.listContracts",
 					"POST /contract-templates": "contract.createTemplate",
+					"GET /contract-templates/:id": "contract.getTemplate",
 					"PUT /contract-templates/:id": "contract.updateTemplate",
 					"GET /contract-templates": "contract.listTemplates",
 					"POST /contract-templates/seed": "contract.seedDefaultTemplates",
@@ -348,6 +350,8 @@ module.exports = {
 				aliases: {
 					"GET /tour/:tourPackageId": "review.listByTour",
 					"GET /stats/:tourPackageId": "review.getStats",
+					"GET /": "review.listAll",
+					"GET /:id": "review.getById",
 					"POST /": "review.create",
 					"PUT /:id": "review.update",
 					"DELETE /:id": "review.delete",
@@ -498,6 +502,7 @@ module.exports = {
 					"POST /verify": "payment.verifyPayment",
 					"POST /refund": "payment.refundPayment",
 					"GET /transactions": "payment.getTransactions",
+					"GET /transactions/:id": "payment.getPayment",
 				},
 			},
 
@@ -585,6 +590,8 @@ module.exports = {
 				aliases: {
 					"GET /tour/:tourPackageId": "review.listByTour",
 					"GET /stats/:tourPackageId": "review.getStats",
+					"GET /": "review.listAll",
+					"GET /:id": "review.getById",
 					"POST /": "review.create",
 					"PUT /:id": "review.update",
 					"DELETE /:id": "review.delete",
@@ -600,6 +607,16 @@ module.exports = {
 				aliases: {
 					"POST /": "contact.submit",
 					"POST /newsletter": "contact.submitNewsletter",
+				},
+			},
+
+			// ─── v2 Organization (current user's org) ───
+			{
+				path: "/api/v2/organization",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /config": "organization.getMyConfig",
 				},
 			},
 
@@ -717,6 +734,7 @@ module.exports = {
 					"POST /templates/seed": "template.seedDefaults",
 					"GET /contracts": "contract.listContracts",
 					"POST /contract-templates": "contract.createTemplate",
+					"GET /contract-templates/:id": "contract.getTemplate",
 					"PUT /contract-templates/:id": "contract.updateTemplate",
 					"GET /contract-templates": "contract.listTemplates",
 					"POST /contract-templates/seed": "contract.seedDefaultTemplates",

@@ -335,6 +335,42 @@ module.exports = {
 		},
 
 		/**
+		 * Get the current user's organization config.
+		 * For super_admin without an org, returns sensible defaults.
+		 */
+		getMyConfig: {
+			auth: "required",
+			async handler(ctx) {
+				const orgId = ctx.meta.user.organizationId;
+
+				// Super admin or user with no org — return defaults
+				if (!orgId) {
+					return {
+						theme: {},
+						features: {},
+						branding: {},
+					};
+				}
+
+				const org = await ctx.call(
+					"organization.model.get",
+					{ id: orgId },
+					{ meta: ctx.meta }
+				).catch(() => null);
+
+				if (!org) {
+					return {
+						theme: {},
+						features: {},
+						branding: {},
+					};
+				}
+
+				return org.config || {};
+			},
+		},
+
+		/**
 		 * Get an organization's config object.
 		 * Requires admin role.
 		 */

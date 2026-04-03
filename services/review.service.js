@@ -10,6 +10,71 @@ module.exports = {
 
 	actions: {
 		/**
+		 * List all reviews with pagination (admin).
+		 * Supports filtering by tourPackageId, rating, isPublished.
+		 */
+		listAll: {
+			auth: "required",
+			role: "admin",
+			params: {
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				tourPackageId: { type: "string", optional: true },
+				rating: { type: "number", optional: true, convert: true },
+				isPublished: { type: "boolean", optional: true, convert: true },
+			},
+			async handler(ctx) {
+				const page = ctx.params.page || 1;
+				const pageSize = Math.min(ctx.params.pageSize || 10, 100);
+				const query = {};
+
+				if (ctx.params.tourPackageId) query.tourPackageId = ctx.params.tourPackageId;
+				if (ctx.params.rating !== undefined) query.rating = ctx.params.rating;
+				if (ctx.params.isPublished !== undefined) query.isPublished = ctx.params.isPublished;
+
+				// Tenant scoping
+				if (ctx.meta.user.organizationId) {
+					query.organizationId = ctx.meta.user.organizationId;
+				}
+
+				const [reviews, total] = await Promise.all([
+					ctx.call("review.model.find", {
+						query,
+						sort: "-createdAt",
+						limit: pageSize,
+						offset: (page - 1) * pageSize,
+						populate: ["customerId", "tourPackageId"],
+					}),
+					ctx.call("review.model.count", { query }),
+				]);
+
+				return { data: reviews, total, page, pageSize };
+			},
+		},
+
+		/**
+		 * Get a single review by ID (admin).
+		 */
+		getById: {
+			auth: "required",
+			role: "admin",
+			params: {
+				id: "string",
+			},
+			async handler(ctx) {
+				const review = await ctx.call("review.model.get", { id: ctx.params.id }).catch(() => null);
+				if (!review) {
+					throw new MoleculerClientError(
+						"Review not found.",
+						404,
+						ERROR_CODES.REVIEW_NOT_FOUND
+					);
+				}
+				return review;
+			},
+		},
+
+		/**
 		 * List published reviews for a tour package.
 		 * Public endpoint — no auth required.
 		 */

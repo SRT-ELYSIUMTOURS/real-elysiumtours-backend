@@ -32,17 +32,39 @@ module.exports = {
 					const mimetype = multipart.mimetype || ctx.meta.mimetype || "";
 
 					// Determine resource type from file extension or mime
-					let resourceType = "auto";
+					// Default to "image" since admin interface primarily uploads images.
+					// Only fall back to "auto" for clearly non-image files.
 					const ext = filename.split(".").pop()?.toLowerCase() || "";
 					const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif", "tiff"];
+					const nonImageExts = ["pdf", "doc", "docx", "xls", "xlsx", "csv", "zip", "mp4", "mov", "avi", "mp3"];
+					let resourceType;
 					if (imageExts.includes(ext) || mimetype.startsWith("image/")) {
+						resourceType = "image";
+					} else if (nonImageExts.includes(ext) || (mimetype && !mimetype.startsWith("image/") && mimetype !== "application/octet-stream")) {
+						resourceType = "auto";
+					} else {
+						// Unknown or missing mimetype/extension — assume image
 						resourceType = "image";
 					}
 
-					const result = await uploadStream(ctx.params, {
-						folder: folder || "elysium-tours",
-						resourceType,
-					});
+					let result;
+					try {
+						result = await uploadStream(ctx.params, {
+							folder: folder || "elysium-tours",
+							resourceType,
+						});
+					} catch (uploadErr) {
+						// If image upload fails (e.g. Cloudinary rejects), retry with "auto"
+						if (resourceType === "image") {
+							this.logger.warn(`Image upload failed, retrying with resourceType "auto": ${uploadErr.message}`);
+							result = await uploadStream(ctx.params, {
+								folder: folder || "elysium-tours",
+								resourceType: "auto",
+							});
+						} else {
+							throw uploadErr;
+						}
+					}
 
 					// Fallback: if Cloudinary still returns raw, force image URL for known image formats
 					let imageUrl = result.secure_url;
