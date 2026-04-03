@@ -76,6 +76,16 @@ module.exports = {
 				if (role) query.role = role;
 				if (status) query.status = status;
 
+				// Org-scoped admins only see users in their org; super_admin sees all
+				if (ctx.meta.user.role !== "super_admin" && ctx.meta.organizationId) {
+					query.organizationId = ctx.meta.organizationId.toString();
+				}
+
+				// Never expose super_admin accounts to org admins
+				if (ctx.meta.user.role !== "super_admin") {
+					query.role = query.role || { $ne: "super_admin" };
+				}
+
 				const result = await ctx.call("user.model.list", {
 					page,
 					pageSize,
@@ -107,6 +117,27 @@ module.exports = {
 					);
 				}
 
+				// Prevent org admins from viewing super_admin accounts
+				if (user.role === "super_admin" && ctx.meta.user.role !== "super_admin") {
+					throw new MoleculerClientError(
+						"User not found.",
+						404,
+						ERROR_CODES.USER_NOT_FOUND
+					);
+				}
+
+				// Prevent org admins from viewing users outside their org
+				if (ctx.meta.user.role !== "super_admin" && ctx.meta.organizationId) {
+					const targetOrgId = user.organizationId ? user.organizationId.toString() : null;
+					if (targetOrgId !== ctx.meta.organizationId.toString()) {
+						throw new MoleculerClientError(
+							"User not found.",
+							404,
+							ERROR_CODES.USER_NOT_FOUND
+						);
+					}
+				}
+
 				return user;
 			},
 		},
@@ -123,6 +154,7 @@ module.exports = {
 			},
 			async handler(ctx) {
 				const { id, status } = ctx.params;
+				const callerRole = ctx.meta.user.role;
 
 				const user = await ctx.call("user.model.get", { id });
 				if (!user) {
@@ -131,6 +163,27 @@ module.exports = {
 						404,
 						ERROR_CODES.USER_NOT_FOUND
 					);
+				}
+
+				// Prevent admin from modifying super_admin accounts
+				if (user.role === "super_admin" && callerRole !== "super_admin") {
+					throw new MoleculerClientError(
+						"Cannot modify a super admin account.",
+						403,
+						ERROR_CODES.FORBIDDEN
+					);
+				}
+
+				// Prevent admin from modifying users outside their org (unless super_admin)
+				if (callerRole !== "super_admin" && ctx.meta.organizationId) {
+					const targetOrgId = user.organizationId ? user.organizationId.toString() : null;
+					if (targetOrgId !== ctx.meta.organizationId.toString()) {
+						throw new MoleculerClientError(
+							"Cannot modify users outside your organization.",
+							403,
+							ERROR_CODES.FORBIDDEN
+						);
+					}
 				}
 
 				const updated = await ctx.call("user.model.update", { id, status });

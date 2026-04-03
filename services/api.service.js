@@ -20,7 +20,7 @@ module.exports = {
 		},
 
 		rateLimit: {
-			limit: 100,
+			limit: process.env.NODE_ENV === "production" ? 100 : 1000,
 			window: 15 * 60 * 1000,
 			headers: true,
 		},
@@ -93,6 +93,7 @@ module.exports = {
 					"GET /profile": "user.getProfile",
 					"PUT /profile": "user.updateProfile",
 					"PUT /change-password": "user.changePassword",
+					"GET /permissions": "auth.getPermissions",
 					"GET /": "user.listUsers",
 					"GET /:id": "user.getUserById",
 					"PUT /:id/status": "user.updateUserStatus",
@@ -384,6 +385,17 @@ module.exports = {
 				},
 			},
 
+			// ─── v2 Account (authenticated, no tenant scope) ───
+			{
+				path: "/api/v2/account",
+				authorization: true,
+				authentication: true,
+				// No tenantRequired — permissions are role-based, not org-scoped
+				aliases: {
+					"GET /permissions": "auth.getPermissions",
+				},
+			},
+
 			// ─── v2 Users ───
 			{
 				path: "/api/v2/users",
@@ -396,6 +408,7 @@ module.exports = {
 					"GET /profile": "user.getProfile",
 					"PUT /profile": "user.updateProfile",
 					"PUT /change-password": "user.changePassword",
+					"GET /permissions": "auth.getPermissions",
 					"GET /": "user.listUsers",
 					"GET /:id": "user.getUserById",
 					"PUT /:id/status": "user.updateUserStatus",
@@ -564,6 +577,7 @@ module.exports = {
 					"POST /organizations": "superAdmin.createOrganization",
 					"PUT /organizations/:id/suspend": "superAdmin.suspendOrganization",
 					"PUT /organizations/:id/activate": "superAdmin.activateOrganization",
+					"DELETE /organizations/:id": "superAdmin.deleteOrganization",
 					"GET /health": "superAdmin.getPlatformHealth",
 					"GET /revenue": "superAdmin.getCrossOrgRevenue",
 					"GET /analytics": "superAdmin.getCrossOrgAnalytics",

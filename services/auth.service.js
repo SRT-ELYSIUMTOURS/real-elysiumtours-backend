@@ -271,6 +271,64 @@ module.exports = {
 		},
 
 		/**
+		 * Get the permissions for the currently authenticated user's role.
+		 * Returns the resource-level and page-level access map derived from
+		 * config/permissions.config.js and the role hierarchy.
+		 */
+		getPermissions: {
+			auth: "required",
+			async handler(ctx) {
+				const userRole = ctx.meta.user.role;
+				const permissionsConfig = require("../config/permissions.config");
+
+				// Role hierarchy: super_admin > admin > staff > customer
+				const ROLE_LEVELS = { customer: 0, staff: 1, admin: 2, super_admin: 3 };
+				const userLevel = ROLE_LEVELS[userRole] || 0;
+
+				// Build resource access map from permissions config
+				// Each permission key is like "tourPackage.create" with { roles: ["admin"] }
+				// We check if the user's role level meets the minimum required role level
+				const resourceAccess = {};
+				const pageAccess = {};
+
+				for (const [key, config] of Object.entries(permissionsConfig)) {
+					const allowedRoles = config.roles || [];
+					// Find the minimum role level required (lowest level in the allowed list)
+					const minLevel = Math.min(
+						...allowedRoles.map((r) => ROLE_LEVELS[r] ?? 99)
+					);
+					const hasAccess = userLevel >= minLevel || userRole === "super_admin";
+
+					// Parse the key into resource.action format
+					const [resource, action] = key.split(".");
+					if (!action) continue;
+
+					if (!resourceAccess[resource]) {
+						resourceAccess[resource] = {};
+					}
+					resourceAccess[resource][action] = hasAccess;
+				}
+
+				// Page-level access derived from key permissions
+				pageAccess.dashboard = userLevel >= ROLE_LEVELS.staff;
+				pageAccess.pricingDesk = userLevel >= ROLE_LEVELS.staff;
+				pageAccess.analytics = userLevel >= ROLE_LEVELS.admin;
+				pageAccess.sla = userLevel >= ROLE_LEVELS.admin;
+				pageAccess.settings = userLevel >= ROLE_LEVELS.admin;
+				pageAccess.communications = userLevel >= ROLE_LEVELS.admin;
+				pageAccess.organizations = userRole === "super_admin";
+				pageAccess.platformHealth = userRole === "super_admin";
+
+				return {
+					role: userRole,
+					roleLevel: userLevel,
+					resourceAccess,
+					pageAccess,
+				};
+			},
+		},
+
+		/**
 		 * Send a password-reset email with a unique token.
 		 */
 		forgotPassword: {

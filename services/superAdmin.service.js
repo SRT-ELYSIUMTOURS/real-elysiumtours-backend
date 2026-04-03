@@ -130,6 +130,11 @@ module.exports = {
 			params: {
 				name: "string",
 				contactEmail: "email",
+				contactPhone: { type: "string", optional: true },
+				domain: { type: "string", optional: true },
+				plan: { type: "enum", values: ["free", "basic", "professional", "enterprise"], optional: true },
+				subscriptionStatus: { type: "enum", values: ["active", "trial", "expired", "cancelled"], optional: true },
+				branding: { type: "object", optional: true },
 				adminEmail: "email",
 				adminPassword: "string",
 				adminFirstName: "string",
@@ -140,6 +145,11 @@ module.exports = {
 				const {
 					name,
 					contactEmail,
+					contactPhone,
+					domain,
+					plan,
+					subscriptionStatus,
+					branding,
 					adminEmail,
 					adminPassword,
 					adminFirstName,
@@ -149,6 +159,16 @@ module.exports = {
 
 				// Create the organization via the organization service
 				const createParams = { name, contactEmail };
+				if (contactPhone) createParams.contactPhone = contactPhone;
+				if (domain) createParams.domain = domain;
+				if (branding) createParams.branding = branding;
+				if (plan || subscriptionStatus) {
+					createParams.subscription = {
+						plan: plan || "free",
+						status: subscriptionStatus || (plan === "free" ? "active" : "trial"),
+						startDate: new Date(),
+					};
+				}
 				if (config) createParams.config = config;
 
 				const organization = await ctx.call(
@@ -218,6 +238,51 @@ module.exports = {
 			},
 			async handler(ctx) {
 				return ctx.call("organization.activate", { id: ctx.params.id }, { meta: ctx.meta });
+			},
+		},
+
+		/**
+		 * Delete an organization and all its associated data.
+		 * Only super_admin can perform this action.
+		 */
+		deleteOrganization: {
+			auth: "required",
+			role: "super_admin",
+			params: {
+				id: "string",
+			},
+			async handler(ctx) {
+				const { id } = ctx.params;
+
+				const org = await ctx.call(
+					"organization.model.get",
+					{ id },
+					{ meta: ctx.meta }
+				).catch(() => null);
+
+				if (!org) {
+					throw new MoleculerClientError(
+						"Organization not found.",
+						404,
+						ERROR_CODES.ORG_NOT_FOUND,
+						{ id }
+					);
+				}
+
+				// Remove all users belonging to this org
+				const users = await ctx.call(
+					"user.model.find",
+					{ query: { organizationId: id } },
+					{ meta: ctx.meta }
+				);
+				for (const user of users) {
+					await ctx.call("user.model.remove", { id: user._id.toString() }, { meta: ctx.meta }).catch(() => null);
+				}
+
+				// Remove the organization
+				await ctx.call("organization.model.remove", { id }, { meta: ctx.meta });
+
+				return { deleted: true, orgId: id, usersRemoved: users.length };
 			},
 		},
 

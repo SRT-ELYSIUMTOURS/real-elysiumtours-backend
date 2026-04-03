@@ -17,6 +17,12 @@ module.exports = {
 				ctx.meta.organizationId = orgId;
 			}
 
+			// For super_admin role: allow cross-org access (bypass tenant requirement)
+			// Super admins can access any org or no org — they have global permissions
+			if (ctx.meta.user && ctx.meta.user.role === "super_admin") {
+				return handler(ctx);
+			}
+
 			// Check if tenant context is required:
 			// - action.tenantRequired (set at action definition)
 			// - ctx.meta.tenantRequired (set by v2 route onBeforeCall)
@@ -29,13 +35,6 @@ module.exports = {
 						"ORGANIZATION_REQUIRED"
 					);
 				}
-			}
-
-			// For super_admin role: allow cross-org access
-			// They can optionally scope to a specific org via header/meta
-			if (ctx.meta.user && ctx.meta.user.role === "super_admin") {
-				// Super admin can access any org or no org
-				// Don't enforce org scoping for super admins
 			}
 
 			return handler(ctx);
