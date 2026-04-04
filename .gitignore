@@ -36,3 +36,20 @@ data/
 # Temporary files
 tmp/
 temp/
+
+# Playwright MCP snapshots
+.playwright-mcp/
+
+# Screenshots
+*.png
+analytics-page.png
+dashboard-*.png
+organizations-list*.png
+sla-page.png
+
+# MongoDB backups
+mongo-backup-*.json
+
+# Generated/temp scripts
+scripts/seedScripts/_writer.js
+scripts/seedScripts/seed-e2e-orgs.js
