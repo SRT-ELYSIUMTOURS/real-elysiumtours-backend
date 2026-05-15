@@ -103,8 +103,23 @@ module.exports = {
 				const offset = (page - 1) * pageSize;
 				const paginatedResults = results.slice(offset, offset + pageSize);
 
+				// Enrich with pricingTiers (if not already from price filter) and destination
+				const enriched = await Promise.all(
+					paginatedResults.map(async (pkg) => {
+						const [pricingTiers, destination] = await Promise.all([
+							pkg.pricingTiers
+								? Promise.resolve(pkg.pricingTiers)
+								: ctx.call("packagePricing.model.find", { query: { packageId: pkg._id.toString(), isActive: true } }, { meta: ctx.meta }),
+							pkg.destinationId
+								? ctx.call("destination.model.get", { id: pkg.destinationId.toString() }, { meta: ctx.meta }).catch(() => null)
+								: Promise.resolve(null),
+						]);
+						return { ...pkg, pricingTiers, destination };
+					})
+				);
+
 				return {
-					results: paginatedResults,
+					results: enriched,
 					total,
 					page,
 					pageSize,
@@ -122,17 +137,29 @@ module.exports = {
 			auth: undefined,
 			params: {
 				destinationId: "string|optional",
+				country: "string|optional",
+				category: "string|optional",
+				tourType: "string|optional",
+				featured: { type: "boolean", optional: true, convert: true },
 				isActive: "boolean|optional",
 				status: "string|optional",
 				sellingMode: "string|optional",
+				sortBy: "string|optional",
+				minPrice: { type: "number", optional: true, convert: true },
+				maxPrice: { type: "number", optional: true, convert: true },
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				limit: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { destinationId, isActive, status, sellingMode, page, pageSize } = ctx.params;
+				const { destinationId, country, category, tourType, featured, isActive, status, sellingMode, sortBy, minPrice, maxPrice, page, pageSize, limit } = ctx.params;
 				const query = {};
 
 				if (destinationId) query.destinationId = destinationId;
+				if (country) query.country = country.toLowerCase();
+				if (category) query.category = category.toLowerCase();
+				if (tourType) query.tourType = tourType;
+				if (typeof featured === "boolean") query.featured = featured;
 				if (typeof isActive === "boolean") query.isActive = isActive;
 				if (status) query.status = status;
 				if (sellingMode) query.sellingMode = sellingMode;
@@ -144,23 +171,46 @@ module.exports = {
 					query.status = "published";
 				}
 
+				const effectivePageSize = pageSize || limit;
 				const params = { query };
 				if (page) params.page = page;
-				if (pageSize) params.pageSize = pageSize;
+				if (effectivePageSize) params.pageSize = effectivePageSize;
 
 				const packages = await ctx.call("tourPackage.model.find", params, { meta: ctx.meta });
 
-				// Attach pricing tiers to each package
-				const results = await Promise.all(
+				// Attach pricing tiers and destination to each package
+				let results = await Promise.all(
 					packages.map(async (pkg) => {
-						const pricingTiers = await ctx.call(
-							"packagePricing.model.find",
-							{ query: { packageId: pkg._id.toString(), isActive: true } },
-							{ meta: ctx.meta }
-						);
-						return { ...pkg, pricingTiers };
+						const [pricingTiers, destination] = await Promise.all([
+							ctx.call(
+								"packagePricing.model.find",
+								{ query: { packageId: pkg._id.toString(), isActive: true } },
+								{ meta: ctx.meta }
+							),
+							pkg.destinationId
+								? ctx.call("destination.model.get", { id: pkg.destinationId.toString() }, { meta: ctx.meta }).catch(() => null)
+								: Promise.resolve(null),
+						]);
+						return { ...pkg, pricingTiers, destination };
 					})
 				);
+
+				// Price range filtering (post-enrichment, prices live in pricingTiers)
+				if (minPrice !== undefined || maxPrice !== undefined) {
+					results = results.filter((pkg) => {
+						const tiers = pkg.pricingTiers || [];
+						if (tiers.length === 0) return false;
+						const lowestPrice = Math.min(...tiers.map((t) => t.pricePerPerson));
+						if (minPrice !== undefined && lowestPrice < minPrice) return false;
+						if (maxPrice !== undefined && lowestPrice > maxPrice) return false;
+						return true;
+					});
+				}
+
+				// Sorting
+				if (sortBy && sortBy !== "recommended") {
+					results = await this.applySortBy(ctx, results, sortBy);
+				}
 
 				return results;
 			},

@@ -297,7 +297,7 @@ module.exports = {
 					}
 				}
 
-				return booking;
+				return this.populateBookingPackage(ctx, booking);
 			},
 		},
 
@@ -342,7 +342,8 @@ module.exports = {
 					{ meta: ctx.meta }
 				);
 
-				return { bookings, total, page, pageSize };
+				const populated = await this.populateBookingsPackages(ctx, bookings);
+				return { bookings: populated, total, page, pageSize };
 			},
 		},
 
@@ -1216,6 +1217,49 @@ module.exports = {
 
 				return updated;
 			},
+		},
+	},
+
+	methods: {
+		async populateBookingPackage(ctx, booking) {
+			if (!booking.packageId) return booking;
+			const pkgId = booking.packageId._id
+				? booking.packageId._id.toString()
+				: booking.packageId.toString();
+			const pkg = await ctx.call(
+				"tourPackage.model.get",
+				{ id: pkgId },
+				{ meta: ctx.meta }
+			).catch(() => null);
+			if (!pkg) return booking;
+			return { ...booking, packageId: { _id: pkg._id, title: pkg.title, slug: pkg.slug, coverImage: pkg.coverImage } };
+		},
+
+		async populateBookingsPackages(ctx, bookings) {
+			if (!bookings || bookings.length === 0) return bookings;
+			const packageIds = [...new Set(
+				bookings.filter(b => b.packageId).map(b =>
+					b.packageId._id ? b.packageId._id.toString() : b.packageId.toString()
+				)
+			)];
+			if (packageIds.length === 0) return bookings;
+			const packages = await ctx.call(
+				"tourPackage.model.find",
+				{ query: { _id: { $in: packageIds } }, limit: packageIds.length },
+				{ meta: ctx.meta }
+			).catch(() => []);
+			const pkgMap = {};
+			for (const pkg of packages) {
+				const id = pkg._id?.toString ? pkg._id.toString() : pkg._id;
+				if (packageIds.includes(id)) {
+					pkgMap[id] = { _id: pkg._id, title: pkg.title, slug: pkg.slug, coverImage: pkg.coverImage };
+				}
+			}
+			return bookings.map(b => {
+				if (!b.packageId) return b;
+				const id = b.packageId._id ? b.packageId._id.toString() : b.packageId.toString();
+				return pkgMap[id] ? { ...b, packageId: pkgMap[id] } : b;
+			});
 		},
 	},
 

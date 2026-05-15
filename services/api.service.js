@@ -897,6 +897,85 @@ module.exports = {
 					},
 				},
 			},
+
+			// ══════════════════════════════════════
+			// Tourist-facing public routes (no tenant scope)
+			// ══════════════════════════════════════
+
+			// ─── Tourist: Public tour browsing ───
+			{
+				path: "/api/v2/tourist/tours",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "tourPackage.list",
+					"GET /search": "tourPackage.search",
+					"GET /slug/:slug": "tourPackage.getBySlug",
+					"GET /:id": "tourPackage.get",
+					"POST /:packageId/view": "tourPackage.incrementViewCount",
+					"POST /:packageId/waitlist": "tourPackage.joinWaitlist",
+				},
+			},
+
+			// ─── Tourist: Public destination browsing ───
+			{
+				path: "/api/v2/tourist/destinations",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "destination.list",
+					"GET /region/:region": "destination.listByRegion",
+					"GET /slug/:slug": "destination.getBySlug",
+					"GET /:id": "destination.get",
+				},
+			},
+
+			// ─── Tourist: Public review browsing ───
+			{
+				path: "/api/v2/tourist/reviews",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /tour/:tourPackageId": "review.listByTour",
+					"GET /stats/:tourPackageId": "review.getStats",
+				},
+			},
+
+			// ─── Tourist: Authenticated profile + bookings (no tenant scope) ───
+			{
+				path: "/api/v2/tourist/me",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /profile": "user.getProfile",
+					"PUT /profile": "user.updateProfile",
+					"PUT /change-password": "user.changePassword",
+					"GET /bookings": "booking.listBookings",
+					"GET /bookings/:id": "booking.getBooking",
+					"POST /bookings": "booking.createBooking",
+					"PUT /bookings/:id/cancel": "booking.cancelBooking",
+					"GET /reviews/tour/:tourPackageId": "review.listByTour",
+					"GET /reviews/stats/:tourPackageId": "review.getStats",
+					"POST /reviews": "review.create",
+					"PUT /reviews/:id": "review.update",
+					"DELETE /reviews/:id": "review.delete",
+					"GET /notifications": "notification.listForUser",
+					"PUT /notifications/:id/read": "notification.markRead",
+				},
+			},
+
+			// ─── Tourist: Authenticated payments (no tenant scope) ───
+			{
+				path: "/api/v2/tourist/payments",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"POST /initiate": "payment.initiatePayment",
+					"POST /verify": "payment.verifyPayment",
+					"GET /transactions": "payment.getTransactions",
+					"GET /transactions/:id": "payment.getPayment",
+				},
+			},
 		],
 
 		// Global error handler

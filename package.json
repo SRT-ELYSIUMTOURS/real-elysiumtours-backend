@@ -45,6 +45,7 @@
     "moleculer": "^0.14.32",
     "moleculer-db": "^0.8.26",
     "moleculer-db-adapter-mongoose": "^0.11.0",
+    "moleculer-repl": "^0.8.0",
     "moleculer-web": "^0.10.7",
     "mongoose": "^8.2.0",
     "nats": "^2.24.0",
