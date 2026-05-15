@@ -9,9 +9,78 @@ const TenantScope = require("./middlewares/tenantScope.middleware");
 const RateLimiter = require("./middlewares/rateLimiter.middleware");
 const AuditLog = require("./middlewares/auditLog.middleware");
 
+// ── Observability env flags ──
+// Opt-in to keep test runs and quiet local boots free of trace noise.
+//   TRACING_ENABLED=true              terminal traces for every action call
+//   TRACING_SAMPLE_RATE=0.1           prod-side sampling (0..1)
+//   METRICS_ENABLED=true              console reporter prints periodic counters
+//   METRICS_INTERVAL=30               console reporter interval (seconds)
+//   METRICS_PROMETHEUS=true           expose /metrics on PROMETHEUS_PORT
+//   PROMETHEUS_PORT=3030
+const isProd = process.env.NODE_ENV === "production";
+const tracingEnabled = process.env.TRACING_ENABLED === "true";
+const metricsEnabled = process.env.METRICS_ENABLED === "true";
+const prometheusEnabled = process.env.METRICS_PROMETHEUS === "true";
+
+const tracingConfig = tracingEnabled
+  ? {
+      enabled: true,
+      exporter: [
+        {
+          type: "Console",
+          options: {
+            width: 120,
+            gaugeWidth: 50,
+            colors: true,
+            logger: null,
+          },
+        },
+      ],
+      events: true,
+      stackTrace: !isProd,
+      actions: true,
+      methods: false,
+      sampling: {
+        rate: isProd ? parseFloat(process.env.TRACING_SAMPLE_RATE || "0.1") : 1.0,
+      },
+    }
+  : false;
+
+const metricsReporters = [];
+if (metricsEnabled) {
+  metricsReporters.push({
+    type: "Console",
+    options: {
+      interval: parseInt(process.env.METRICS_INTERVAL, 10) || 30,
+      colors: true,
+      onlyChanges: true,
+    },
+  });
+}
+if (prometheusEnabled) {
+  metricsReporters.push({
+    type: "Prometheus",
+    options: {
+      port: parseInt(process.env.PROMETHEUS_PORT, 10) || 3030,
+      path: "/metrics",
+      defaultLabels: (registry) => ({
+        namespace: registry.broker.namespace,
+        nodeID: registry.broker.nodeID,
+      }),
+    },
+  });
+}
+const metricsConfig =
+  metricsReporters.length > 0
+    ? { enabled: true, reporter: metricsReporters }
+    : false;
+
 module.exports = {
   nodeID: `${os.hostname()}-${process.pid}`,
 
+  // Console logger. Per-module level overrides via LOG_LEVEL_<MODULE>=level
+  // (e.g. LOG_LEVEL_TRANSIT=warn) handled at process start; the broker reads
+  // the merged levelObject below.
   logger: {
     type: "Console",
     options: {
@@ -20,9 +89,16 @@ module.exports = {
       moduleColors: true,
       formatter: "full",
       objectPrinter: null,
-      autoPadding: false,
+      autoPadding: true,
     },
   },
+
+  // Tracing — terminal-friendly when TRACING_ENABLED=true.
+  // Spans cover every action call, including cross-service ctx.call() chains.
+  tracing: tracingConfig,
+
+  // Metrics — Console reporter for terminal, optional Prometheus for scraping.
+  metrics: metricsConfig,
 
   transporter: process.env.REDIS_URL || null,
 

@@ -34,6 +34,7 @@ const MONGOOSE_COLLECTIONS = [
 	"waitlistentries",
 	"galleryitems",
 	"tourguides",
+	"forexrates",
 ];
 
 // Shared connection promise — ensures a single mongoose.connect() call

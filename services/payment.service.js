@@ -2,7 +2,13 @@
 
 const crypto = require("crypto");
 const { MoleculerClientError } = require("moleculer").Errors;
-const { ERROR_CODES, PAYMENT_STATUSES, BOOKING_STATUSES } = require("../utils/constants");
+const {
+	ERROR_CODES,
+	PAYMENT_STATUSES,
+	BOOKING_STATUSES,
+	CURRENCIES,
+	SETTLEMENT_CURRENCY,
+} = require("../utils/constants");
 const { BOOKING_TRANSITIONS, isValidTransition } = require("../config/bookingStates.config");
 const paystackConfig = require("../config/paystack.config");
 const PaystackMixin = require("../mixins/payment/paystack.mixin");
@@ -73,7 +79,8 @@ module.exports = {
 					);
 				}
 
-				// Calculate amount based on payment type
+				// Calculate amount based on payment type. This is in the booking's
+				// displayCurrency (e.g. USD for inbound tours) — NOT necessarily GHS.
 				let amount;
 				if (paymentType === "commitment_fee") {
 					amount = booking.commitmentFeeAmount;
@@ -99,24 +106,67 @@ module.exports = {
 					amount = milestoneAmount;
 				}
 
+				const displayCurrency =
+					booking.displayCurrency || booking.currency || CURRENCIES.GHS;
+
+				// ── FX-lock boundary ──
+				// Paystack-Ghana settles in GHS only. If displayCurrency != GHS we lock
+				// the rate at the moment of initiation and persist it on the payment.
+				let amountGHS = amount;
+				let fxRate = 1;
+				let fxRateRef = null;
+				let fxLockedAt = null;
+
+				if (displayCurrency !== SETTLEMENT_CURRENCY) {
+					const conversion = await ctx.call(
+						"forexRate.convert",
+						{
+							amount,
+							fromCurrency: displayCurrency,
+							toCurrency: SETTLEMENT_CURRENCY,
+						},
+						{ meta: ctx.meta }
+					);
+					amountGHS = conversion.amount;
+					fxRate = conversion.effectiveRate;
+					fxLockedAt = new Date().toISOString();
+					if (conversion.fxRate && conversion.fxRate._id) {
+						fxRateRef = conversion.fxRate._id.toString
+							? conversion.fxRate._id.toString()
+							: conversion.fxRate._id;
+					}
+				}
+
 				// Generate transaction reference
 				const timestamp = Date.now();
 				const randomHex = crypto.randomBytes(2).toString("hex");
 				const transactionRef = `ELY-PAY-${timestamp}-${randomHex}`;
 
-				// Create payment record
+				// Create payment record. `amount` mirrors what the customer was quoted in
+				// displayCurrency; `amountGHS` is what Paystack will actually charge.
+				const paymentRecord = {
+					bookingId,
+					customerId: userId,
+					amount,
+					currency: displayCurrency,
+					displayCurrency,
+					amountInDisplayCurrency: amount,
+					settlementCurrency: SETTLEMENT_CURRENCY,
+					amountGHS,
+					provider: "paystack",
+					paymentType,
+					transactionRef,
+					status: PAYMENT_STATUSES.PENDING,
+				};
+				if (fxRate !== 1) {
+					paymentRecord.fxRate = fxRate;
+					paymentRecord.fxLockedAt = fxLockedAt;
+					if (fxRateRef) paymentRecord.fxRateRef = fxRateRef;
+				}
+
 				const payment = await ctx.call(
 					"payment.model.create",
-					{
-						bookingId,
-						customerId: userId,
-						amount,
-						currency: booking.currency || "GHS",
-						provider: "paystack",
-						paymentType,
-						transactionRef,
-						status: PAYMENT_STATUSES.PENDING,
-					},
+					paymentRecord,
 					{ meta: ctx.meta }
 				);
 
@@ -129,11 +179,12 @@ module.exports = {
 
 				const email = user?.email || ctx.meta.user.email || "customer@elysiumtours.com";
 
-				// Initialize Paystack transaction
+				// Initialize Paystack transaction. Always settle in GHS — Paystack-Ghana
+				// merchants cannot charge other currencies.
 				const paystackResult = await this.initializeTransaction({
 					email,
-					amount,
-					currency: booking.currency || "GHS",
+					amount: amountGHS,
+					currency: SETTLEMENT_CURRENCY,
 					reference: transactionRef,
 					callbackUrl: paystackConfig.callbackUrl,
 					metadata: {
@@ -141,6 +192,9 @@ module.exports = {
 						paymentId: payment._id.toString(),
 						paymentType,
 						customerId: userId,
+						displayCurrency,
+						amountInDisplayCurrency: amount,
+						fxRate,
 					},
 				});
 
@@ -175,6 +229,10 @@ module.exports = {
 					authorizationUrl: paystackResult.authorization_url,
 					accessCode: paystackResult.access_code,
 					transactionRef,
+					displayCurrency,
+					amountInDisplayCurrency: amount,
+					amountGHS,
+					fxRate,
 				};
 			},
 		},
@@ -387,13 +445,24 @@ module.exports = {
 					);
 				}
 
-				const amount = refundAmount || payment.amount;
+				// `refundAmount` (admin input) is in the payment's displayCurrency.
+				// Default to full refund if not provided.
+				const amountInDisplay = refundAmount || payment.amountInDisplayCurrency || payment.amount;
 				const bookingId = payment.bookingId?.toString ? payment.bookingId.toString() : payment.bookingId;
 
-				// Call Paystack refund
+				// Paystack settles in GHS. Convert the requested refund amount using the
+				// ORIGINAL locked fx rate — not today's rate — so the customer gets back
+				// the exact GHS proportion they paid.
+				const originalFxRate = payment.fxRate || 1;
+				const refundAmountGHS =
+					originalFxRate === 1
+						? amountInDisplay
+						: Math.round(amountInDisplay * originalFxRate * 100) / 100;
+
+				// Call Paystack refund — always in GHS (the settlement currency)
 				await this.createRefund({
 					transaction: payment.transactionRef,
-					amount,
+					amount: refundAmountGHS,
 					reason,
 				});
 
@@ -407,8 +476,15 @@ module.exports = {
 					{
 						bookingId,
 						customerId: payment.customerId?.toString ? payment.customerId.toString() : payment.customerId,
-						amount: -amount,
-						currency: payment.currency || "GHS",
+						amount: -amountInDisplay,
+						currency: payment.currency || payment.displayCurrency || CURRENCIES.GHS,
+						displayCurrency: payment.displayCurrency || payment.currency,
+						amountInDisplayCurrency: -amountInDisplay,
+						settlementCurrency: SETTLEMENT_CURRENCY,
+						amountGHS: -refundAmountGHS,
+						fxRate: originalFxRate,
+						fxLockedAt: payment.fxLockedAt,
+						fxRateRef: payment.fxRateRef,
 						provider: "paystack",
 						paymentType: "refund",
 						transactionRef: refundRef,
@@ -419,9 +495,11 @@ module.exports = {
 					{ meta: ctx.meta }
 				);
 
-				// Update original payment
-				const totalRefunded = (payment.refundedAmount || 0) + amount;
-				const newStatus = totalRefunded >= payment.amount
+				// Update original payment. Compare in display currency since that's the
+				// canonical record of what the customer was quoted.
+				const totalRefunded = (payment.refundedAmount || 0) + amountInDisplay;
+				const referenceAmount = payment.amountInDisplayCurrency || payment.amount;
+				const newStatus = totalRefunded >= referenceAmount
 					? PAYMENT_STATUSES.REFUNDED
 					: PAYMENT_STATUSES.PARTIALLY_REFUNDED;
 
@@ -439,7 +517,9 @@ module.exports = {
 				ctx.emit("payment.refunded", {
 					bookingId,
 					paymentId,
-					refundAmount: amount,
+					refundAmount: amountInDisplay,
+					refundAmountGHS,
+					currency: payment.displayCurrency || payment.currency,
 					reason,
 				});
 
@@ -462,11 +542,12 @@ module.exports = {
 			params: {
 				bookingId: { type: "string", optional: true },
 				status: { type: "string", optional: true },
+				organizationId: { type: "string", optional: true },
 				page: { type: "number", optional: true, convert: true },
 				pageSize: { type: "number", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { bookingId, status, page = 1, pageSize = 20 } = ctx.params;
+				const { bookingId, status, organizationId, page = 1, pageSize = 20 } = ctx.params;
 				const user = ctx.meta.user;
 
 				const query = {};
@@ -478,6 +559,12 @@ module.exports = {
 
 				if (bookingId) query.bookingId = bookingId;
 				if (status) query.status = status;
+
+				// Elevated roles can explicitly filter by partner org. Org-scoped admins
+				// are already auto-scoped by tenantScope.middleware on the .find call.
+				if (organizationId && (user.role === "super_admin" || user.role === "admin" || user.role === "staff")) {
+					query.organizationId = organizationId;
+				}
 
 				const payments = await ctx.call(
 					"payment.model.find",

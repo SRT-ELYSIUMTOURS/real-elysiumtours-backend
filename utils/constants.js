@@ -25,6 +25,14 @@ const ERROR_CODES = {
 	COMMITMENT_FEE_REQUIRED: "COMMITMENT_FEE_REQUIRED",
 	MILESTONE_NOT_FOUND: "MILESTONE_NOT_FOUND",
 	MILESTONE_ALREADY_PAID: "MILESTONE_ALREADY_PAID",
+	// FX
+	FOREX_RATE_NOT_FOUND: "FOREX_RATE_NOT_FOUND",
+	FOREX_RATE_STALE: "FOREX_RATE_STALE",
+	UNSUPPORTED_CURRENCY: "UNSUPPORTED_CURRENCY",
+	// Accommodation
+	ACCOMMODATION_OPTION_NOT_FOUND: "ACCOMMODATION_OPTION_NOT_FOUND",
+	ROOM_TYPE_NOT_AVAILABLE: "ROOM_TYPE_NOT_AVAILABLE",
+	ACCOMMODATION_REQUIRED: "ACCOMMODATION_REQUIRED",
 	// Quote
 	QUOTE_NOT_FOUND: "QUOTE_NOT_FOUND",
 	QUOTE_EXPIRED: "QUOTE_EXPIRED",
@@ -80,8 +88,10 @@ const BOOKING_STATUSES = {
 	PENDING_PAYMENT: "pending_payment",
 	PAYMENT_PROCESSING: "payment_processing",
 	CONFIRMED: "confirmed",
+	FULLY_PAID: "fully_paid",
 	CANCELLED: "cancelled",
 	CANCELLED_WITH_REFUND: "cancelled_with_refund",
+	CANCELLATION_OVERDUE: "cancellation_overdue",
 	TOUR_SCHEDULED: "tour_scheduled",
 	TOUR_IN_PROGRESS: "tour_in_progress",
 	TOUR_COMPLETED: "tour_completed",
@@ -209,6 +219,51 @@ const WAITLIST_STATUSES = {
 	CANCELLED: "cancelled",
 };
 
+const ROOM_TYPES = {
+	SINGLE: "single",
+	DOUBLE: "double",
+	TRIPLE: "triple",
+	QUAD: "quad",
+};
+
+// Canonical attraction categories. Kept as a soft enum (the model stores a
+// plain string) so existing free-form data isn't rejected, but admin pickers
+// and frontend filters should pull from this list to keep tagging consistent.
+//
+// Covers the Achimota brief categories (ceremonies, dinners, slave-trade sites,
+// safaris, boat rides) plus the existing generic Ghana tour vocabulary.
+const ATTRACTION_CATEGORIES = {
+	NATURAL_SITE: "natural_site",          // waterfalls, lakes, forests
+	WILDLIFE_TOUR: "wildlife_tour",        // safaris, game drives, sanctuaries
+	MUSEUM: "museum",                       // ethnographic, historical, art museums
+	PALACE: "palace",                       // royal/chieftaincy seats (e.g. Manhyia)
+	MONUMENT: "monument",                   // landmarks, statues, bridges
+	BRIDGE: "bridge",                       // notable bridges (Adomi, etc.)
+	SLAVE_TRADE_SITE: "slave_trade_site",  // forts/castles tied to the slave trade
+	FORT: "fort",                           // forts and castles (Elmina, Prinzenstein)
+	RELIGIOUS_SITE: "religious_site",       // shrines, churches, mosques
+	CULTURAL_VILLAGE: "cultural_village",   // artisan villages (shea butter, kente)
+	BEACH: "beach",                         // coastline, lagoons
+	BOAT_RIDE: "boat_ride",                 // Dodi Princess, lake cruises
+	HIKING: "hiking",                       // trails, mountains
+	CEREMONY: "ceremony",                   // flag-planting, durbars, festivals
+	DINNER_EVENT: "dinner_event",           // formal alumni dinners, fundraisers
+	PERFORMANCE: "performance",             // music, dance, theatre
+	MARKET: "market",                       // cultural / craft markets
+	OTHER: "other",
+};
+
+// Currencies the platform can price tours in.
+// Paystack-Ghana settles in GHS only — any other display currency is converted at payment time.
+const CURRENCIES = {
+	GHS: "GHS",
+	USD: "USD",
+	EUR: "EUR",
+	GBP: "GBP",
+};
+
+const SETTLEMENT_CURRENCY = CURRENCIES.GHS;
+
 module.exports = {
 	ERROR_CODES,
 	BOOKING_STATUSES,
@@ -228,4 +283,8 @@ module.exports = {
 	WAITLIST_STATUSES,
 	ORG_STATUSES,
 	SUBSCRIPTION_PLANS,
+	ROOM_TYPES,
+	CURRENCIES,
+	SETTLEMENT_CURRENCY,
+	ATTRACTION_CATEGORIES,
 };

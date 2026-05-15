@@ -2,7 +2,7 @@
 
 const mongoose = require("mongoose");
 const DbService = require("../../../mixins/db.mixin");
-const { BOOKING_STATUSES } = require("../../../utils/constants");
+const { BOOKING_STATUSES, ROOM_TYPES, CURRENCIES } = require("../../../utils/constants");
 
 const BookingSchema = new mongoose.Schema(
 	{
@@ -41,6 +41,8 @@ const BookingSchema = new mongoose.Schema(
 		endDate: {
 			type: Date,
 		},
+		// Total amount in the customer's display currency (could be USD, GHS, etc.).
+		// Settlement is always in GHS — see Payment.amountGHS for what the customer is actually charged.
 		totalAmount: {
 			type: Number,
 			required: true,
@@ -49,6 +51,25 @@ const BookingSchema = new mongoose.Schema(
 			type: String,
 			default: "GHS",
 		},
+		// Customer-facing currency for this booking — mirrors the chosen tour package's displayCurrency.
+		// Kept distinct from `currency` (which is treated as legacy) so we can phase the field cleanly.
+		displayCurrency: {
+			type: String,
+			enum: Object.values(CURRENCIES),
+			default: CURRENCIES.GHS,
+		},
+		// Accommodation choice (Option B pricing model). Set when the package has accommodationOptions[].
+		// Stores the subdocument _id from TourPackage.accommodationOptions and the selected roomType.
+		accommodationOptionId: {
+			type: mongoose.Schema.Types.ObjectId,
+		},
+		accommodationLabel: { type: String },
+		accommodationTier: { type: String },
+		roomType: {
+			type: String,
+			enum: Object.values(ROOM_TYPES),
+		},
+		pricePerPerson: { type: Number },
 		status: {
 			type: String,
 			enum: Object.values(BOOKING_STATUSES),
@@ -117,6 +138,12 @@ module.exports = {
 			"endDate",
 			"totalAmount",
 			"currency",
+			"displayCurrency",
+			"accommodationOptionId",
+			"accommodationLabel",
+			"accommodationTier",
+			"roomType",
+			"pricePerPerson",
 			"status",
 			"commitmentFeeAmount",
 			"commitmentFeePaid",
@@ -139,6 +166,12 @@ module.exports = {
 			endDate: "string|optional",
 			totalAmount: "number",
 			currency: "string|optional",
+			displayCurrency: "string|optional",
+			accommodationOptionId: "string|optional",
+			accommodationLabel: "string|optional",
+			accommodationTier: "string|optional",
+			roomType: "string|optional",
+			pricePerPerson: { type: "number", optional: true, convert: true },
 			status: "string|optional",
 			commitmentFeeAmount: { type: "number", optional: true, convert: true },
 			commitmentFeePaid: "boolean|optional",

@@ -1,7 +1,7 @@
 "use strict";
 
 const { MoleculerClientError } = require("moleculer").Errors;
-const { ERROR_CODES } = require("../utils/constants");
+const { ERROR_CODES, ATTRACTION_CATEGORIES } = require("../utils/constants");
 
 module.exports = {
 	name: "attraction",
@@ -9,6 +9,24 @@ module.exports = {
 	dependencies: ["attraction.model", "destination.model"],
 
 	actions: {
+		/**
+		 * Return the canonical attraction-category vocabulary.
+		 * Admin pickers should use this to keep tagging consistent across the catalogue.
+		 * Public — no auth required since the list is non-sensitive.
+		 */
+		listCategories: {
+			auth: undefined,
+			async handler() {
+				return Object.values(ATTRACTION_CATEGORIES).map((value) => ({
+					value,
+					label: value
+						.split("_")
+						.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+						.join(" "),
+				}));
+			},
+		},
+
 		/**
 		 * Find nearby attractions using geospatial query.
 		 * Public action.

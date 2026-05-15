@@ -1,7 +1,12 @@
 "use strict";
 
 const { MoleculerClientError } = require("moleculer").Errors;
-const { ERROR_CODES, PAYMENT_PLAN_STATUSES, MILESTONE_STATUSES } = require("../utils/constants");
+const {
+	ERROR_CODES,
+	PAYMENT_PLAN_STATUSES,
+	MILESTONE_STATUSES,
+	CURRENCIES,
+} = require("../utils/constants");
 const { PAYMENT_PLAN_TRANSITIONS, isValidTransition } = require("../config/bookingStates.config");
 
 const DEFAULT_COMMITMENT_FEE_PERCENT = parseInt(process.env.DEFAULT_COMMITMENT_FEE_PERCENT, 10) || 15;
@@ -41,6 +46,7 @@ module.exports = {
 				totalAmount: "number",
 				commitmentFeePercent: { type: "number", optional: true, convert: true },
 				numberOfMilestones: { type: "number", optional: true, convert: true },
+				currency: "string|optional",
 			},
 			async handler(ctx) {
 				const {
@@ -70,6 +76,9 @@ module.exports = {
 					? booking.customerId._id.toString()
 					: booking.customerId.toString();
 
+				const planCurrency =
+					ctx.params.currency || booking.displayCurrency || booking.currency || CURRENCIES.GHS;
+
 				const commitmentFeeAmount = Math.round((totalAmount * commitmentFeePercent) / 100 * 100) / 100;
 				const remainingAmount = totalAmount - commitmentFeeAmount;
 
@@ -82,7 +91,7 @@ module.exports = {
 						totalAmount,
 						paidAmount: 0,
 						remainingAmount: totalAmount,
-						currency: "GHS",
+						currency: planCurrency,
 						commitmentFeePercent,
 						commitmentFeeAmount,
 						numberOfMilestones,
@@ -119,7 +128,7 @@ module.exports = {
 							milestoneNumber: i + 1,
 							label: getMilestoneLabel(i, numberOfMilestones),
 							amount,
-							currency: "GHS",
+							currency: planCurrency,
 							dueDate,
 							status: MILESTONE_STATUSES.PENDING,
 							isOverdue: false,
@@ -510,7 +519,7 @@ module.exports = {
 		 * When a booking is created, auto-create a payment plan.
 		 */
 		async "booking.created"(payload) {
-			const { bookingId, totalAmount, customerId } = payload;
+			const { bookingId, totalAmount, currency, displayCurrency } = payload;
 
 			if (!bookingId || !totalAmount) {
 				this.logger.warn("booking.created event missing bookingId or totalAmount", payload);
@@ -521,6 +530,7 @@ module.exports = {
 				await this.broker.call("paymentPlan.createPlan", {
 					bookingId: bookingId.toString(),
 					totalAmount,
+					currency: displayCurrency || currency,
 				});
 				this.logger.info("Payment plan created for booking:", bookingId);
 			} catch (err) {

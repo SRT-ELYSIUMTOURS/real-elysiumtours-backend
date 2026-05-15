@@ -380,7 +380,8 @@ erDiagram
     }
 
     TOUR_PACKAGE ||--o{ BOOKING : booked_as
-    TOUR_PACKAGE ||--|{ PACKAGE_PRICING : has_tiers
+    TOUR_PACKAGE ||--o{ PACKAGE_PRICING : has_legacy_tiers
+    TOUR_PACKAGE ||--o{ ACCOMMODATION_OPTION : offers
     TOUR_PACKAGE }|--|| DESTINATION : at
     TOUR_PACKAGE }o--o{ ATTRACTION : includes
     TOUR_PACKAGE }o--|| HOTEL_PARTNER : stays_at
@@ -395,6 +396,7 @@ erDiagram
         array diningIds
         string transportType
         array images
+        string displayCurrency
         boolean isActive
         string status
     }
@@ -407,6 +409,33 @@ erDiagram
         number pricePerPerson
         number totalPrice
         string currency
+    }
+
+    ACCOMMODATION_OPTION }o--|| HOTEL_PARTNER : primary
+    ACCOMMODATION_OPTION ||--o{ ACCOMMODATION_PRICING_ROW : prices
+    ACCOMMODATION_OPTION ||--o{ DESTINATION_HOTEL_MAP : per_city
+    ACCOMMODATION_OPTION {
+        ObjectId _id
+        string label
+        string tier
+        ObjectId hotelPartnerId
+        string description
+        boolean isActive
+    }
+
+    ACCOMMODATION_PRICING_ROW {
+        string roomType
+        int minGroupSize
+        int maxGroupSize
+        number pricePerPerson
+    }
+
+    DESTINATION_HOTEL_MAP }o--|| DESTINATION : for
+    DESTINATION_HOTEL_MAP }o--|| HOTEL_PARTNER : maps_to
+    DESTINATION_HOTEL_MAP {
+        ObjectId destinationId
+        ObjectId hotelPartnerId
+        int nights
     }
 
     DESTINATION ||--o{ TOUR_PACKAGE : offers
@@ -467,22 +496,50 @@ erDiagram
         string bookingRef
         int groupSize
         Date tourDate
+        Date endDate
         number totalAmount
+        string currency
+        string displayCurrency
+        ObjectId accommodationOptionId
+        string accommodationLabel
+        string accommodationTier
+        string roomType
+        number pricePerPerson
         string status
         Date createdAt
     }
 
+    PAYMENT }o--o| FOREX_RATE : locked_at
     PAYMENT {
         ObjectId _id
         ObjectId bookingId
         ObjectId customerId
         number amount
         string currency
+        string displayCurrency
+        number amountInDisplayCurrency
+        string settlementCurrency
+        number amountGHS
+        number fxRate
+        Date fxLockedAt
+        ObjectId fxRateRef
         string provider
         string transactionRef
         string status
         Date paidAt
         object metadata
+    }
+
+    FOREX_RATE {
+        ObjectId _id
+        string fromCurrency
+        string toCurrency
+        number rate
+        number markupPercent
+        Date effectiveDate
+        Date expiresAt
+        string source
+        boolean isActive
     }
 
     HOTEL_PARTNER }|--|| DESTINATION : in

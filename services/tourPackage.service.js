@@ -1,7 +1,7 @@
 "use strict";
 
 const { MoleculerClientError } = require("moleculer").Errors;
-const { ERROR_CODES, SELLING_MODES } = require("../utils/constants");
+const { ERROR_CODES, SELLING_MODES, CURRENCIES } = require("../utils/constants");
 const { generateSlug } = require("../utils/slug.utils");
 
 module.exports = {
@@ -122,6 +122,7 @@ module.exports = {
 			auth: undefined,
 			params: {
 				destinationId: "string|optional",
+				organizationId: "string|optional",
 				isActive: "boolean|optional",
 				status: "string|optional",
 				sellingMode: "string|optional",
@@ -129,16 +130,20 @@ module.exports = {
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { destinationId, isActive, status, sellingMode, page, pageSize } = ctx.params;
+				const { destinationId, organizationId, isActive, status, sellingMode, page, pageSize } = ctx.params;
 				const query = {};
 
 				if (destinationId) query.destinationId = destinationId;
+				if (organizationId) query.organizationId = organizationId;
 				if (typeof isActive === "boolean") query.isActive = isActive;
 				if (status) query.status = status;
 				if (sellingMode) query.sellingMode = sellingMode;
 
-				// Non-admin users only see active + published packages
-				const isAdmin = ctx.meta && ctx.meta.user && ctx.meta.user.role === "admin";
+				// Non-admin users only see active + published packages.
+				// Both "admin" and "super_admin" bypass — super_admin previously fell
+				// through this branch and got filtered like a tourist.
+				const role = ctx.meta && ctx.meta.user && ctx.meta.user.role;
+				const isAdmin = role === "admin" || role === "super_admin";
 				if (!isAdmin) {
 					query.isActive = true;
 					query.status = "published";
@@ -280,6 +285,9 @@ module.exports = {
 				startDate: "string|optional",
 				endDate: "string|optional",
 				pricingTiers: "array|optional",
+				displayCurrency: "string|optional",
+				accommodationOptions: "array|optional",
+				organizationId: "string|optional",
 			},
 			async handler(ctx) {
 				const {
@@ -301,6 +309,9 @@ module.exports = {
 					startDate,
 					endDate,
 					pricingTiers,
+					displayCurrency,
+					accommodationOptions,
+					organizationId,
 				} = ctx.params;
 
 				// Validate destinationId exists
@@ -382,8 +393,17 @@ module.exports = {
 					itinerary: itinerary || [],
 					startDate,
 					endDate,
+					displayCurrency: displayCurrency || CURRENCIES.GHS,
+					accommodationOptions: accommodationOptions || [],
 					createdBy: ctx.meta && ctx.meta.user ? ctx.meta.user._id : undefined,
 				};
+
+				// Partner-org scoping (e.g. OAA): super_admin can stamp a tour with a
+				// specific organizationId via the form. Non-super_admin callers get
+				// their orgId auto-injected by tenantScope.middleware on the model.create.
+				if (organizationId) {
+					packageData.organizationId = organizationId;
+				}
 
 				// Set remainingCapacity for individual_seats mode
 				if ((sellingMode || SELLING_MODES.GROUP_BUY) === SELLING_MODES.INDIVIDUAL_SEATS && totalCapacity) {
@@ -450,6 +470,9 @@ module.exports = {
 				itinerary: "array|optional",
 				startDate: "string|optional",
 				endDate: "string|optional",
+				displayCurrency: "string|optional",
+				accommodationOptions: "array|optional",
+				organizationId: "string|optional",
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;
@@ -781,7 +804,14 @@ module.exports = {
 		},
 
 		/**
-		 * Validate a package for booking.
+		 * Validate a package for booking and resolve price.
+		 *
+		 * Two pricing paths (Option B model + legacy):
+		 *   1. accommodationOptions[] populated → caller must pass accommodationOptionId + roomType
+		 *      and the price comes from the option's pricing matrix.
+		 *   2. accommodationOptions[] empty → fall back to PackagePricing rows keyed by groupSize
+		 *      (legacy behaviour preserved).
+		 *
 		 * Internal action.
 		 */
 		validatePackage: {
@@ -789,9 +819,11 @@ module.exports = {
 			params: {
 				packageId: "string",
 				groupSize: { type: "number", integer: true, positive: true, convert: true },
+				accommodationOptionId: "string|optional",
+				roomType: "string|optional",
 			},
 			async handler(ctx) {
-				const { packageId, groupSize } = ctx.params;
+				const { packageId, groupSize, accommodationOptionId, roomType } = ctx.params;
 
 				const pkg = await ctx.call(
 					"tourPackage.model.get",
@@ -831,7 +863,73 @@ module.exports = {
 					);
 				}
 
-				// Find applicable pricing tier for groupSize
+				const currency = pkg.displayCurrency || CURRENCIES.GHS;
+				const hasAccommodationOptions =
+					Array.isArray(pkg.accommodationOptions) && pkg.accommodationOptions.length > 0;
+
+				// ── Path 1: Accommodation-option pricing (Option B model) ──
+				if (hasAccommodationOptions) {
+					if (!accommodationOptionId) {
+						throw new MoleculerClientError(
+							"This package requires an accommodation option selection.",
+							422,
+							ERROR_CODES.ACCOMMODATION_REQUIRED,
+							{ packageId, availableOptions: pkg.accommodationOptions.map((o) => ({ id: o._id, label: o.label })) }
+						);
+					}
+
+					if (!roomType) {
+						throw new MoleculerClientError(
+							"This package requires a room type selection.",
+							422,
+							ERROR_CODES.ACCOMMODATION_REQUIRED,
+							{ packageId }
+						);
+					}
+
+					const option = pkg.accommodationOptions.find((o) => {
+						const oid = o._id && o._id.toString ? o._id.toString() : String(o._id);
+						return oid === String(accommodationOptionId);
+					});
+
+					if (!option || option.isActive === false) {
+						throw new MoleculerClientError(
+							"Accommodation option not found on this package.",
+							404,
+							ERROR_CODES.ACCOMMODATION_OPTION_NOT_FOUND,
+							{ packageId, accommodationOptionId }
+						);
+					}
+
+					const pricingRow = (option.pricing || []).find(
+						(row) =>
+							row.roomType === roomType &&
+							groupSize >= (row.minGroupSize || 1) &&
+							groupSize <= (row.maxGroupSize || 1000)
+					);
+
+					if (!pricingRow) {
+						throw new MoleculerClientError(
+							`Room type "${roomType}" is not available at this group size for the chosen accommodation.`,
+							422,
+							ERROR_CODES.ROOM_TYPE_NOT_AVAILABLE,
+							{ packageId, accommodationOptionId, roomType, groupSize }
+						);
+					}
+
+					return {
+						valid: true,
+						package: pkg,
+						accommodationOption: option,
+						pricingRow,
+						pricePerPerson: pricingRow.pricePerPerson,
+						totalPrice: Math.round(pricingRow.pricePerPerson * groupSize * 100) / 100,
+						currency,
+						roomType,
+					};
+				}
+
+				// ── Path 2: Legacy PackagePricing (groupSize tiers only) ──
 				const pricingTiers = await ctx.call(
 					"packagePricing.model.find",
 					{ query: { packageId, isActive: true } },
@@ -857,6 +955,7 @@ module.exports = {
 					pricingTier: matchingTier,
 					pricePerPerson: matchingTier.pricePerPerson,
 					totalPrice: matchingTier.totalPrice || matchingTier.pricePerPerson * groupSize,
+					currency: matchingTier.currency || currency,
 				};
 			},
 		},

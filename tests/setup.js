@@ -11,6 +11,12 @@ process.env.JWT_EXPIRY = "1h";
 process.env.REFRESH_TOKEN_EXPIRY = "7d";
 process.env.OTP_EXPIRY_MINUTES = "10";
 
+// Observability is opt-in via env flags; tests force them off so terminal output
+// stays focused on test results.
+process.env.TRACING_ENABLED = "false";
+process.env.METRICS_ENABLED = "false";
+process.env.METRICS_PROMETHEUS = "false";
+
 // Suppress unhandled promise rejection warnings in tests
 process.on("unhandledRejection", (reason) => {
   // Only log in non-test environments
