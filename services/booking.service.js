@@ -1,7 +1,13 @@
 "use strict";
 
 const { MoleculerClientError } = require("moleculer").Errors;
-const { ERROR_CODES, BOOKING_STATUSES, QUOTE_STATUSES, SELLING_MODES } = require("../utils/constants");
+const {
+	ERROR_CODES,
+	BOOKING_STATUSES,
+	QUOTE_STATUSES,
+	SELLING_MODES,
+	CURRENCIES,
+} = require("../utils/constants");
 const { generateBookingRef } = require("../utils/bookingRef.utils");
 const BookingStatusMixin = require("../mixins/booking/bookingStatus.mixin");
 
@@ -26,9 +32,19 @@ module.exports = {
 				groupSize: { type: "number", integer: true, positive: true, convert: true },
 				tourDate: "string|optional",
 				specialRequests: "string|optional",
+				accommodationOptionId: "string|optional",
+				roomType: "string|optional",
 			},
 			async handler(ctx) {
-				const { packageId, quoteId, groupSize, tourDate, specialRequests } = ctx.params;
+				const {
+					packageId,
+					quoteId,
+					groupSize,
+					tourDate,
+					specialRequests,
+					accommodationOptionId,
+					roomType,
+				} = ctx.params;
 				const customerId = ctx.meta.user.id;
 
 				if (!packageId && !quoteId) {
@@ -47,6 +63,9 @@ module.exports = {
 				let endDate;
 				let linkedPackageId;
 				let linkedQuoteId;
+				let bookingCurrency = CURRENCIES.GHS;
+				let selectedAccommodationOption = null;
+				let selectedPricePerPerson = null;
 
 				let packageData;
 
@@ -54,7 +73,7 @@ module.exports = {
 					// ---- Packaged booking ----
 					const validation = await ctx.call(
 						"tourPackage.validatePackage",
-						{ packageId, groupSize },
+						{ packageId, groupSize, accommodationOptionId, roomType },
 						{ meta: ctx.meta }
 					);
 
@@ -62,6 +81,9 @@ module.exports = {
 					totalAmount = validation.totalPrice;
 					linkedPackageId = packageId;
 					packageData = validation.package;
+					bookingCurrency = validation.currency || CURRENCIES.GHS;
+					selectedAccommodationOption = validation.accommodationOption || null;
+					selectedPricePerPerson = validation.pricePerPerson || null;
 
 					// Use package dates if not provided
 					if (!finalTourDate && validation.package.startDate) {
@@ -156,6 +178,7 @@ module.exports = {
 					totalAmount = quote.totalPrice;
 					finalGroupSize = tourRequest.groupSize;
 					linkedQuoteId = quoteId;
+					bookingCurrency = quote.currency || CURRENCIES.GHS;
 
 					if (!finalTourDate && tourRequest.preferredStartDate) {
 						finalTourDate = new Date(tourRequest.preferredStartDate).toISOString();
@@ -163,47 +186,68 @@ module.exports = {
 				}
 
 				// ── Partner inventory validation ──
+				// When the customer picked an accommodation option, that option's hotel mapping
+				// wins over the package-level hotelPartnerId. Multi-destination tours can map
+				// a different hotel to each destination via accommodationOption.destinationHotels[].
 				const partnerConfirmations = [];
 				const bookingTourDate = tourDate ? new Date(tourDate) : null;
+				const checkInIso = bookingTourDate
+					? bookingTourDate.toISOString()
+					: new Date().toISOString();
 
+				const hotelIdsToCheck = [];
 				if (bookingType === "packaged" && packageData) {
-					// Check hotel partner
-					if (packageData.hotelPartnerId) {
-						const hotelCheck = await ctx.call("hotelPartner.checkAvailability", {
-							hotelId: packageData.hotelPartnerId.toString(),
-							checkInDate: bookingTourDate ? bookingTourDate.toISOString() : new Date().toISOString(),
-						}, { meta: ctx.meta }).catch(() => ({ available: true, inventoryModel: "on_request", needsConfirmation: true }));
-
-						if (!hotelCheck.available) {
-							// Hotel closed out — still create booking but flag it
-							partnerConfirmations.push({
-								partnerId: packageData.hotelPartnerId,
-								partnerType: "hotel",
-								partnerName: hotelCheck.hotel ? hotelCheck.hotel.name : "Unknown Hotel",
-								inventoryModel: hotelCheck.inventoryModel,
-								status: "pending",
-								notes: hotelCheck.reason,
-							});
-						} else if (hotelCheck.needsConfirmation) {
-							// On-request: needs manual confirmation
-							partnerConfirmations.push({
-								partnerId: packageData.hotelPartnerId,
-								partnerType: "hotel",
-								partnerName: hotelCheck.hotel ? hotelCheck.hotel.name : "Unknown Hotel",
-								inventoryModel: hotelCheck.inventoryModel,
-								status: "pending",
-							});
-						} else {
-							// Free-sale with no conflicts: auto-confirmed
-							partnerConfirmations.push({
-								partnerId: packageData.hotelPartnerId,
-								partnerType: "hotel",
-								partnerName: hotelCheck.hotel ? hotelCheck.hotel.name : "Unknown Hotel",
-								inventoryModel: hotelCheck.inventoryModel,
-								status: "auto_confirmed",
-								confirmedAt: new Date(),
-							});
+					if (selectedAccommodationOption) {
+						const destinationHotels = selectedAccommodationOption.destinationHotels || [];
+						if (destinationHotels.length > 0) {
+							for (const dh of destinationHotels) {
+								if (dh.hotelPartnerId) {
+									hotelIdsToCheck.push(dh.hotelPartnerId.toString());
+								}
+							}
+						} else if (selectedAccommodationOption.hotelPartnerId) {
+							hotelIdsToCheck.push(selectedAccommodationOption.hotelPartnerId.toString());
 						}
+					} else if (packageData.hotelPartnerId) {
+						hotelIdsToCheck.push(packageData.hotelPartnerId.toString());
+					}
+				}
+
+				for (const hotelId of hotelIdsToCheck) {
+					const hotelCheck = await ctx.call(
+						"hotelPartner.checkAvailability",
+						{ hotelId, checkInDate: checkInIso },
+						{ meta: ctx.meta }
+					).catch(() => ({ available: true, inventoryModel: "on_request", needsConfirmation: true }));
+
+					const partnerName = hotelCheck.hotel ? hotelCheck.hotel.name : "Unknown Hotel";
+
+					if (!hotelCheck.available) {
+						partnerConfirmations.push({
+							partnerId: hotelId,
+							partnerType: "hotel",
+							partnerName,
+							inventoryModel: hotelCheck.inventoryModel,
+							status: "pending",
+							notes: hotelCheck.reason,
+						});
+					} else if (hotelCheck.needsConfirmation) {
+						partnerConfirmations.push({
+							partnerId: hotelId,
+							partnerType: "hotel",
+							partnerName,
+							inventoryModel: hotelCheck.inventoryModel,
+							status: "pending",
+						});
+					} else {
+						partnerConfirmations.push({
+							partnerId: hotelId,
+							partnerType: "hotel",
+							partnerName,
+							inventoryModel: hotelCheck.inventoryModel,
+							status: "auto_confirmed",
+							confirmedAt: new Date(),
+						});
 					}
 				}
 
@@ -222,12 +266,21 @@ module.exports = {
 					bookingRef,
 					groupSize: finalGroupSize,
 					totalAmount,
-					currency: "GHS",
+					currency: bookingCurrency,
+					displayCurrency: bookingCurrency,
 					status: initialStatus,
 					commitmentFeeAmount,
 					commitmentFeePaid: false,
 					specialRequests: specialRequests || undefined,
 				};
+
+				if (selectedAccommodationOption) {
+					bookingData.accommodationOptionId = selectedAccommodationOption._id;
+					bookingData.accommodationLabel = selectedAccommodationOption.label;
+					bookingData.accommodationTier = selectedAccommodationOption.tier;
+				}
+				if (roomType) bookingData.roomType = roomType;
+				if (selectedPricePerPerson) bookingData.pricePerPerson = selectedPricePerPerson;
 
 				if (partnerConfirmations.length > 0) {
 					bookingData.partnerConfirmations = partnerConfirmations;
@@ -244,15 +297,153 @@ module.exports = {
 					{ meta: ctx.meta }
 				);
 
+				// Soft overlap check: surface (but do not block on) conflicting bookings.
+				// Achimota's Tour 1 (23–28 Jan) and Tour 3 (26–28 Jan) overlap; a customer
+				// may legitimately want both, so the frontend should warn rather than refuse.
+				let overlapWarning = null;
+				if (finalTourDate) {
+					try {
+						const overlapResult = await ctx.call(
+							"booking.checkOverlap",
+							{
+								tourDate: finalTourDate,
+								endDate: endDate || finalTourDate,
+								excludeBookingId: booking._id.toString(),
+							},
+							{ meta: ctx.meta }
+						);
+						if (overlapResult.hasOverlap) {
+							overlapWarning = overlapResult;
+							this.logger.info(
+								`Booking ${booking.bookingRef} overlaps ${overlapResult.overlaps.length} existing booking(s) for customer ${customerId}`
+							);
+						}
+					} catch (err) {
+						this.logger.warn(`Overlap check failed for booking ${booking.bookingRef}: ${err.message}`);
+					}
+				}
+
 				ctx.emit("booking.created", {
 					bookingId: booking._id,
 					bookingRef: booking.bookingRef,
 					customerId,
 					bookingType,
 					totalAmount,
+					currency: bookingCurrency,
+					displayCurrency: bookingCurrency,
 				});
 
+				if (overlapWarning) {
+					return { ...booking, overlapWarning };
+				}
 				return booking;
+			},
+		},
+
+		/**
+		 * Check whether the authenticated customer has existing bookings that
+		 * overlap a proposed date range. Returns the overlapping bookings as
+		 * informational data — does NOT hard-block. Frontends should call this
+		 * before showing the booking confirmation step and prompt the user if
+		 * any overlaps are returned.
+		 *
+		 * Example: Achimota Tour 1 (23–28 Jan) and Tour 3 (26–28 Jan) overlap;
+		 * a customer trying to book both would surface here.
+		 *
+		 * Statuses considered "active" (and therefore conflict candidates):
+		 *   pending_partner_confirmation, pending_payment, payment_processing,
+		 *   confirmed, fully_paid, tour_scheduled, tour_in_progress
+		 *
+		 * Terminal statuses (cancelled, cancelled_with_refund, tour_completed,
+		 * review_requested) never raise a conflict.
+		 */
+		checkOverlap: {
+			auth: "required",
+			params: {
+				tourDate: "string",
+				endDate: "string|optional",
+				excludeBookingId: "string|optional",
+				customerId: "string|optional",
+			},
+			async handler(ctx) {
+				const { tourDate, endDate, excludeBookingId } = ctx.params;
+				const requester = ctx.meta.user;
+
+				// Customers can only check their own bookings; staff/admin/super_admin
+				// may pass a customerId to inspect on behalf of another user.
+				const isElevated =
+					requester.role === "admin" ||
+					requester.role === "super_admin" ||
+					requester.role === "staff";
+				const customerId = isElevated && ctx.params.customerId
+					? ctx.params.customerId
+					: requester.id;
+
+				const proposedStart = new Date(tourDate);
+				// A booking without an explicit endDate is treated as occupying the
+				// 24h window after tourDate — sufficient for single-day tours and
+				// matches how tour operators conventionally talk about "the day of".
+				const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+				const proposedEnd = endDate
+					? new Date(endDate)
+					: new Date(proposedStart.getTime() + ONE_DAY_MS);
+
+				if (Number.isNaN(proposedStart.getTime()) || Number.isNaN(proposedEnd.getTime())) {
+					throw new MoleculerClientError(
+						"Invalid date range.",
+						422,
+						ERROR_CODES.VALIDATION_ERROR,
+						{ tourDate, endDate }
+					);
+				}
+
+				const activeStatuses = [
+					BOOKING_STATUSES.PENDING_PARTNER_CONFIRMATION,
+					BOOKING_STATUSES.PENDING_PAYMENT,
+					BOOKING_STATUSES.PAYMENT_PROCESSING,
+					BOOKING_STATUSES.CONFIRMED,
+					BOOKING_STATUSES.FULLY_PAID,
+					BOOKING_STATUSES.TOUR_SCHEDULED,
+					BOOKING_STATUSES.TOUR_IN_PROGRESS,
+				];
+
+				const existing = await ctx.call(
+					"booking.model.find",
+					{
+						query: {
+							customerId,
+							status: { $in: activeStatuses },
+						},
+					},
+					{ meta: ctx.meta }
+				);
+
+				const overlaps = (existing || []).filter((b) => {
+					const bookingId = b._id?.toString ? b._id.toString() : String(b._id);
+					if (excludeBookingId && bookingId === String(excludeBookingId)) return false;
+					if (!b.tourDate) return false;
+
+					const bStart = new Date(b.tourDate);
+					const bEnd = b.endDate
+						? new Date(b.endDate)
+						: new Date(bStart.getTime() + ONE_DAY_MS);
+
+					// Overlap iff: proposedStart <= bEnd AND proposedEnd >= bStart
+					return proposedStart <= bEnd && proposedEnd >= bStart;
+				});
+
+				return {
+					hasOverlap: overlaps.length > 0,
+					overlaps: overlaps.map((b) => ({
+						bookingId: b._id?.toString ? b._id.toString() : String(b._id),
+						bookingRef: b.bookingRef,
+						status: b.status,
+						tourDate: b.tourDate,
+						endDate: b.endDate,
+						packageId: b.packageId,
+						groupSize: b.groupSize,
+					})),
+				};
 			},
 		},
 
@@ -309,11 +500,12 @@ module.exports = {
 			params: {
 				status: "string|optional",
 				bookingType: "string|optional",
+				organizationId: "string|optional",
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { status, bookingType, page = 1, pageSize = 10 } = ctx.params;
+				const { status, bookingType, organizationId, page = 1, pageSize = 10 } = ctx.params;
 				const user = ctx.meta.user;
 				const query = {};
 
@@ -324,6 +516,13 @@ module.exports = {
 
 				if (status) query.status = status;
 				if (bookingType) query.bookingType = bookingType;
+
+				// Super_admin can explicitly filter by partner org. Org-scoped admins are
+				// already auto-scoped to their own org by tenantScope.middleware on the
+				// .find call below, so passing this here is redundant for them — harmless.
+				if (organizationId && (user.role === "super_admin" || user.role === "admin" || user.role === "staff")) {
+					query.organizationId = organizationId;
+				}
 
 				const total = await ctx.call(
 					"booking.model.count",

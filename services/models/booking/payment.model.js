@@ -2,7 +2,7 @@
 
 const mongoose = require("mongoose");
 const DbService = require("../../../mixins/db.mixin");
-const { PAYMENT_STATUSES } = require("../../../utils/constants");
+const { PAYMENT_STATUSES, CURRENCIES, SETTLEMENT_CURRENCY } = require("../../../utils/constants");
 
 const PaymentSchema = new mongoose.Schema(
 	{
@@ -17,6 +17,8 @@ const PaymentSchema = new mongoose.Schema(
 			ref: "User",
 			required: true,
 		},
+		// `amount` and `currency` mirror the customer-facing values shown on checkout
+		// (e.g. USD 1500). For the actual Paystack charge in pesewas see amountGHS.
 		amount: {
 			type: Number,
 			required: true,
@@ -25,6 +27,29 @@ const PaymentSchema = new mongoose.Schema(
 			type: String,
 			default: "GHS",
 		},
+		// Customer-facing display currency (e.g. "USD") — duplicates booking.displayCurrency
+		// for query convenience.
+		displayCurrency: {
+			type: String,
+			enum: Object.values(CURRENCIES),
+		},
+		// Amount in customer's display currency at the time of payment initiation.
+		// Equal to `amount` once we phase out the legacy field.
+		amountInDisplayCurrency: { type: Number },
+		// Settlement currency — always GHS for Paystack-Ghana merchants.
+		settlementCurrency: {
+			type: String,
+			enum: Object.values(CURRENCIES),
+			default: SETTLEMENT_CURRENCY,
+		},
+		// Amount actually charged via Paystack, in GHS (major unit).
+		// Equal to amountInDisplayCurrency * fxRate, rounded to 2 dp.
+		amountGHS: { type: Number },
+		// USD→GHS (or other→GHS) rate locked at the moment of initiation.
+		fxRate: { type: Number },
+		fxLockedAt: { type: Date },
+		// Reference back to the ForexRate document used at lock time, for audit.
+		fxRateRef: { type: mongoose.Schema.Types.ObjectId, ref: "ForexRate" },
 		provider: {
 			type: String,
 			default: "paystack",
@@ -92,6 +117,13 @@ module.exports = {
 			"customerId",
 			"amount",
 			"currency",
+			"displayCurrency",
+			"amountInDisplayCurrency",
+			"settlementCurrency",
+			"amountGHS",
+			"fxRate",
+			"fxLockedAt",
+			"fxRateRef",
 			"provider",
 			"paymentType",
 			"transactionRef",
@@ -111,6 +143,13 @@ module.exports = {
 			customerId: "string",
 			amount: "number",
 			currency: "string|optional",
+			displayCurrency: "string|optional",
+			amountInDisplayCurrency: { type: "number", optional: true, convert: true },
+			settlementCurrency: "string|optional",
+			amountGHS: { type: "number", optional: true, convert: true },
+			fxRate: { type: "number", optional: true, convert: true },
+			fxLockedAt: "string|optional",
+			fxRateRef: "string|optional",
 			provider: "string|optional",
 			paymentType: "string",
 			transactionRef: "string|optional",

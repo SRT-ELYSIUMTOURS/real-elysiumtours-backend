@@ -9,11 +9,11 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/elysium-to
 
 const SEED_USERS = [
 	{
-		email: "admin@elysiumtours.com",
-		password: "AdminPass123!",
-		firstName: "Admin",
-		lastName: "User",
-		role: "admin",
+		email: "superadmin@elysiumtours.com",
+		password: "SuperAdmin123!",
+		firstName: "Super",
+		lastName: "Admin",
+		role: "super_admin",
 	},
 	{
 		email: "staff@elysiumtours.com",

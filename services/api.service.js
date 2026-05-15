@@ -145,6 +145,7 @@ module.exports = {
 				authentication: true,
 				aliases: {
 					"GET /": "attraction.list",
+					"GET /categories": "attraction.listCategories",
 					"GET /nearby": "attraction.findNearby",
 					"GET /destination/:destinationId": "attraction.getByDestination",
 					"GET /:id": "attraction.get",
@@ -219,6 +220,7 @@ module.exports = {
 				authentication: true,
 				aliases: {
 					"POST /": "booking.createBooking",
+					"POST /check-overlap": "booking.checkOverlap",
 					"GET /": "booking.listBookings",
 					"GET /:id": "booking.getBooking",
 					"PUT /:id/status": "booking.updateStatus",
@@ -309,6 +311,21 @@ module.exports = {
 					"GET /:paymentPlanId/milestones": "paymentPlan.getMilestones",
 					"GET /booking/:bookingId/next-due": "paymentPlan.getNextDueMilestone",
 					"POST /milestones/:milestoneId/pay": "paymentPlan.payMilestone",
+				},
+			},
+
+			// ─── Route: Forex Rates (admin-managed FX for USD→GHS settlement) ───
+			{
+				path: "/api/v1/forex-rates",
+				authorization: true,
+				authentication: true,
+				aliases: {
+					"GET /": "forexRate.list",
+					"POST /": "forexRate.create",
+					"PUT /:id": "forexRate.update",
+					"POST /convert": "forexRate.convert",
+					"GET /current": "forexRate.getCurrent",
+					"PUT /:id/deactivate": "forexRate.deactivate",
 				},
 			},
 
@@ -479,6 +496,7 @@ module.exports = {
 				},
 				aliases: {
 					"POST /": "booking.createBooking",
+					"POST /check-overlap": "booking.checkOverlap",
 					"GET /": "booking.listBookings",
 					"GET /:id": "booking.getBooking",
 					"PUT /:id/status": "booking.updateStatus",
@@ -703,6 +721,22 @@ module.exports = {
 				},
 			},
 
+			// ─── v2 Forex Rates ───
+			{
+				path: "/api/v2/forex-rates",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
+				aliases: {
+					"GET /": "forexRate.list",
+					"POST /": "forexRate.create",
+					"PUT /:id": "forexRate.update",
+					"POST /convert": "forexRate.convert",
+					"GET /current": "forexRate.getCurrent",
+					"PUT /:id/deactivate": "forexRate.deactivate",
+				},
+			},
+
 			// ─── v2 Pricing Desk ───
 			{
 				path: "/api/v2/pricing-desk",
@@ -756,6 +790,7 @@ module.exports = {
 				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
 				aliases: {
 					"GET /": "attraction.list",
+					"GET /categories": "attraction.listCategories",
 					"GET /nearby": "attraction.findNearby",
 					"GET /destination/:destinationId": "attraction.getByDestination",
 					"GET /:id": "attraction.get",

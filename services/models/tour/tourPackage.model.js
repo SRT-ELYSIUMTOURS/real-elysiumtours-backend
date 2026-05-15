@@ -2,7 +2,71 @@
 
 const mongoose = require("mongoose");
 const DbService = require("../../../mixins/db.mixin");
-const { SELLING_MODES, TRANSPORT_TYPES } = require("../../../utils/constants");
+const {
+	SELLING_MODES,
+	TRANSPORT_TYPES,
+	HOTEL_TIERS,
+	ROOM_TYPES,
+	CURRENCIES,
+} = require("../../../utils/constants");
+
+// Sub-schema: per-destination hotel override inside an accommodation option.
+// Multi-destination tours (e.g. Achimota Tour 1) use this to say
+// "the Standard tier maps to Hotel A in Tamale and Hotel B in Kumasi".
+const AccommodationDestinationHotelSchema = new mongoose.Schema(
+	{
+		destinationId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "Destination",
+			required: true,
+		},
+		hotelPartnerId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "HotelPartner",
+			required: true,
+		},
+		nights: { type: Number },
+	},
+	{ _id: false }
+);
+
+// Sub-schema: room-type pricing inside an accommodation option.
+// Optional group-size brackets allow per-tier group discounts later
+// without forcing a separate PackagePricing row.
+const AccommodationPricingRowSchema = new mongoose.Schema(
+	{
+		roomType: {
+			type: String,
+			enum: Object.values(ROOM_TYPES),
+			required: true,
+		},
+		minGroupSize: { type: Number, default: 1 },
+		maxGroupSize: { type: Number, default: 1000 },
+		pricePerPerson: { type: Number, required: true },
+	},
+	{ _id: false }
+);
+
+// Sub-schema: one accommodation tier choice on a tour package.
+// E.g. Achimota Tour 1 has three: Standard / Premium / Luxury.
+const AccommodationOptionSchema = new mongoose.Schema(
+	{
+		label: { type: String, required: true, trim: true },
+		tier: {
+			type: String,
+			enum: Object.values(HOTEL_TIERS),
+		},
+		hotelPartnerId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "HotelPartner",
+		},
+		destinationHotels: { type: [AccommodationDestinationHotelSchema], default: [] },
+		pricing: { type: [AccommodationPricingRowSchema], default: [] },
+		description: { type: String },
+		isActive: { type: Boolean, default: true },
+	},
+	{ timestamps: false }
+);
 
 const TourPackageSchema = new mongoose.Schema(
 	{
@@ -70,6 +134,18 @@ const TourPackageSchema = new mongoose.Schema(
 			enum: Object.values(SELLING_MODES),
 			default: SELLING_MODES.GROUP_BUY,
 		},
+		// Currency in which this package's prices are quoted to customers.
+		// Settlement still happens in GHS — see services/payment.service.js for FX-lock at payment.
+		displayCurrency: {
+			type: String,
+			enum: Object.values(CURRENCIES),
+			default: CURRENCIES.GHS,
+		},
+		// Customer-facing accommodation tier choices (Option B pricing model).
+		// When non-empty, this replaces packagePricing rows as the source of truth for price.
+		// Each option pins a hotel partner (or per-destination map for multi-city tours)
+		// and a room-type price matrix.
+		accommodationOptions: { type: [AccommodationOptionSchema], default: [] },
 		totalCapacity: {
 			type: Number,
 		},
@@ -230,6 +306,8 @@ module.exports = {
 			"attractionIds",
 			"diningIds",
 			"transportType",
+			"displayCurrency",
+			"accommodationOptions",
 			"images",
 			"coverImage",
 			"heroImages",
@@ -297,6 +375,8 @@ module.exports = {
 			attractionIds: "array|optional",
 			diningIds: "array|optional",
 			transportType: "string|optional",
+			displayCurrency: "string|optional",
+			accommodationOptions: "array|optional",
 			images: "array|optional",
 			coverImage: "string|optional",
 			heroImages: "array|optional",
