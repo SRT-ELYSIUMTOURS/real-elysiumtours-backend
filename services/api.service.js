@@ -460,6 +460,24 @@ module.exports = {
 				},
 			},
 
+			// ─── v2 Countries (admin) ───
+			{
+				path: "/api/v2/countries",
+				authorization: true,
+				authentication: true,
+				onBeforeCall(ctx, route, req, res) {
+					ctx.meta.tenantRequired = true;
+				},
+				aliases: {
+					"GET /": "country.list",
+					"GET /slug/:slug": "country.getBySlug",
+					"GET /:id": "country.get",
+					"POST /": "country.create",
+					"PUT /:id": "country.update",
+					"PUT /:id/toggle": "country.toggleActive",
+				},
+			},
+
 			// ─── v2 Tours ───
 			{
 				path: "/api/v2/tours",
@@ -965,6 +983,18 @@ module.exports = {
 				},
 			},
 
+			// ─── Tourist: Public country browsing ───
+			{
+				path: "/api/v2/tourist/countries",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "country.list",
+					"GET /slug/:slug": "country.getBySlug",
+					"GET /:id": "country.get",
+				},
+			},
+
 			// ─── Tourist: Public review browsing ───
 			{
 				path: "/api/v2/tourist/reviews",
@@ -973,6 +1003,48 @@ module.exports = {
 				aliases: {
 					"GET /tour/:tourPackageId": "review.listByTour",
 					"GET /stats/:tourPackageId": "review.getStats",
+				},
+			},
+
+			// ─── Tourist: Public partner browsing ───
+			{
+				path: "/api/v2/tourist/partners",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /hotels": "hotelPartner.list",
+					"GET /hotels/:id": "hotelPartner.get",
+					"GET /attractions": "attraction.list",
+					"GET /attractions/:id": "attraction.get",
+					"GET /dining": "dining.list",
+					"GET /dining/:id": "dining.get",
+					"GET /transport": "transport.listProviders",
+					"GET /transport/:id": "transport.getProvider",
+					"GET /photographers": "photographer.list",
+					"GET /photographers/:id": "photographer.get",
+					"GET /services": "servicePartner.list",
+					"GET /services/:id": "servicePartner.get",
+				},
+			},
+
+			// ─── Tourist: Public guide browsing ───
+			{
+				path: "/api/v2/tourist/guides",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "tourGuide.list",
+					"GET /:id": "tourGuide.get",
+				},
+			},
+
+			// ─── Tourist: Public partner applications ───
+			{
+				path: "/api/v2/partner-applications",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"POST /": "partnerApplication.submit",
 				},
 			},
 

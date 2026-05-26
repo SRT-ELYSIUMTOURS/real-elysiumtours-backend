@@ -40,19 +40,28 @@ module.exports = {
 			params: {
 				destinationId: "string|optional",
 				cuisineType: "string|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
+				sort: "string|optional",
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { destinationId, cuisineType, isActive, page, pageSize } = ctx.params;
+				const { destinationId, cuisineType, isActive, sort, page, pageSize } = ctx.params;
 				const query = {};
 
 				if (destinationId) query.destinationId = destinationId;
 				if (cuisineType) query.cuisineType = cuisineType;
 				if (typeof isActive === "boolean") query.isActive = isActive;
 
+				const SORT_MAP = {
+					rating_desc: "-rating",
+					rating_asc: "rating",
+					name_asc: "name",
+					name_desc: "-name",
+				};
+
 				const params = { query };
+				if (sort && SORT_MAP[sort]) params.sort = SORT_MAP[sort];
 				if (page) params.page = page;
 				if (pageSize) params.pageSize = pageSize;
 
@@ -168,7 +177,7 @@ module.exports = {
 				contactInfo: "object|optional",
 				menuOptions: "array|optional",
 				images: "array|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;

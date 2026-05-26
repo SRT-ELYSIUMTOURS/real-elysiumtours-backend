@@ -16,12 +16,22 @@ module.exports = {
 		listProviders: {
 			auth: undefined,
 			params: {
+				sort: "string|optional",
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { page, pageSize } = ctx.params;
+				const { sort, page, pageSize } = ctx.params;
+
+				const SORT_MAP = {
+					rating_desc: "-rating",
+					rating_asc: "rating",
+					name_asc: "companyName",
+					name_desc: "-companyName",
+				};
+
 				const params = { query: { isActive: true } };
+				if (sort && SORT_MAP[sort]) params.sort = SORT_MAP[sort];
 				if (page) params.page = page;
 				if (pageSize) params.pageSize = pageSize;
 

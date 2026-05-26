@@ -142,7 +142,7 @@ module.exports = {
 				category: "string|optional",
 				tourType: "string|optional",
 				featured: { type: "boolean", optional: true, convert: true },
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 				status: "string|optional",
 				sellingMode: "string|optional",
 				sortBy: "string|optional",
@@ -791,7 +791,7 @@ module.exports = {
 				pricePerPerson: { type: "number", positive: true, optional: true, convert: true },
 				totalPrice: { type: "number", optional: true, convert: true },
 				label: "string|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;

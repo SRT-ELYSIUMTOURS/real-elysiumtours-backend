@@ -13,6 +13,8 @@ const TourGuideSchema = new mongoose.Schema(
 		languages: { type: [String], default: ["English"] },
 		bio: { type: String },
 		avatar: { type: String },
+		galleryImages: { type: [String], default: [] },
+		country: { type: String, trim: true },
 		rating: { type: Number, default: 0, min: 0, max: 5 },
 		reviewCount: { type: Number, default: 0 },
 		isActive: { type: Boolean, default: true },
@@ -21,6 +23,7 @@ const TourGuideSchema = new mongoose.Schema(
 );
 
 TourGuideSchema.index({ organizationId: 1, isActive: 1 });
+TourGuideSchema.index({ country: 1 });
 
 module.exports = {
 	name: "tourGuide.model",
@@ -30,7 +33,7 @@ module.exports = {
 	settings: {
 		fields: [
 			"_id", "name", "organizationId", "email", "phone", "specialities",
-			"languages", "bio", "avatar", "rating", "reviewCount", "isActive",
+			"languages", "bio", "avatar", "galleryImages", "country", "rating", "reviewCount", "isActive",
 			"createdAt", "updatedAt",
 		],
 		entityValidator: {
@@ -41,6 +44,8 @@ module.exports = {
 			languages: "array|optional",
 			bio: "string|optional",
 			avatar: "string|optional",
+			galleryImages: "array|optional",
+			country: "string|optional",
 			rating: "number|optional",
 			reviewCount: "number|optional",
 			isActive: "boolean|optional",

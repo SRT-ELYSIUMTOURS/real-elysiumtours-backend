@@ -2,35 +2,32 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES } = require("../utils/constants");
-const PaginateMixin = require("../mixins/paginate.mixin");
 
 module.exports = {
-	name: "tourGuide",
+	name: "servicePartner",
 
-	mixins: [PaginateMixin],
-
-	dependencies: ["tourGuide.model"],
+	dependencies: ["servicePartner.model"],
 
 	actions: {
 		/**
-		 * List tour guides with optional filters.
+		 * List service partners with optional filters.
 		 * Public action.
 		 */
 		list: {
 			auth: undefined,
 			params: {
 				isActive: { type: "boolean", optional: true, convert: true },
-				country: "string|optional",
+				serviceType: "string|optional",
 				sort: "string|optional",
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { isActive, country, sort, page, pageSize } = ctx.params;
+				const { isActive, serviceType, sort, page, pageSize } = ctx.params;
 				const query = {};
 
 				if (typeof isActive === "boolean") query.isActive = isActive;
-				if (country) query.country = country;
+				if (serviceType) query.serviceType = serviceType;
 
 				const SORT_MAP = {
 					rating_desc: "-rating",
@@ -44,12 +41,12 @@ module.exports = {
 				if (page) params.page = page;
 				if (pageSize) params.pageSize = pageSize;
 
-				return ctx.call("tourGuide.model.find", params, { meta: ctx.meta });
+				return ctx.call("servicePartner.model.find", params, { meta: ctx.meta });
 			},
 		},
 
 		/**
-		 * Get a single tour guide by ID.
+		 * Get a single service partner by ID.
 		 * Public action.
 		 */
 		get: {
@@ -58,27 +55,27 @@ module.exports = {
 				id: "string",
 			},
 			async handler(ctx) {
-				const guide = await ctx.call(
-					"tourGuide.model.get",
+				const partner = await ctx.call(
+					"servicePartner.model.get",
 					{ id: ctx.params.id },
 					{ meta: ctx.meta }
 				).catch(() => null);
 
-				if (!guide) {
+				if (!partner) {
 					throw new MoleculerClientError(
-						"Tour guide not found.",
+						"Service partner not found.",
 						404,
-						ERROR_CODES.NOT_FOUND,
+						ERROR_CODES.PARTNER_NOT_FOUND,
 						{ id: ctx.params.id }
 					);
 				}
 
-				return guide;
+				return partner;
 			},
 		},
 
 		/**
-		 * Create a new tour guide.
+		 * Create a new service partner.
 		 * Requires admin role.
 		 */
 		create: {
@@ -86,48 +83,25 @@ module.exports = {
 			role: "admin",
 			params: {
 				name: "string",
-				email: "string|optional",
-				phone: "string|optional",
-				specialities: "array|optional",
-				languages: "array|optional",
-				bio: "string|optional",
-				avatar: "string|optional",
-				country: "string|optional",
-				rating: { type: "number", optional: true, convert: true },
-				reviewCount: { type: "number", optional: true, convert: true },
+				serviceType: "string|optional",
+				description: "string|optional",
+				coverImage: "string|optional",
+				images: "array|optional",
+				priceRange: "string|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
+				contactInfo: "object|optional",
 			},
 			async handler(ctx) {
-				const {
-					name, email, phone, specialities, languages,
-					bio, avatar, country, rating, reviewCount, isActive,
-				} = ctx.params;
-
-				const guide = await ctx.call(
-					"tourGuide.model.create",
-					{
-						name,
-						email,
-						phone,
-						specialities: specialities || [],
-						languages: languages || ["English"],
-						bio,
-						avatar,
-						country,
-						rating: rating || 0,
-						reviewCount: reviewCount || 0,
-						isActive: typeof isActive === "boolean" ? isActive : true,
-					},
+				return ctx.call(
+					"servicePartner.model.create",
+					ctx.params,
 					{ meta: ctx.meta }
 				);
-
-				this.broker.broadcast("tourGuide.created", { guide });
-				return guide;
 			},
 		},
 
 		/**
-		 * Update a tour guide.
+		 * Update a service partner.
 		 * Requires admin role.
 		 */
 		update: {
@@ -136,37 +110,34 @@ module.exports = {
 			params: {
 				id: "string",
 				name: "string|optional",
-				email: "string|optional",
-				phone: "string|optional",
-				specialities: "array|optional",
-				languages: "array|optional",
-				bio: "string|optional",
-				avatar: "string|optional",
-				country: "string|optional",
-				rating: { type: "number", optional: true, convert: true },
-				reviewCount: { type: "number", optional: true, convert: true },
+				serviceType: "string|optional",
+				description: "string|optional",
+				coverImage: "string|optional",
+				images: "array|optional",
+				priceRange: "string|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
+				contactInfo: "object|optional",
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;
 
 				const existing = await ctx.call(
-					"tourGuide.model.get",
+					"servicePartner.model.get",
 					{ id },
 					{ meta: ctx.meta }
 				).catch(() => null);
 
 				if (!existing) {
 					throw new MoleculerClientError(
-						"Tour guide not found.",
+						"Service partner not found.",
 						404,
-						ERROR_CODES.NOT_FOUND,
+						ERROR_CODES.PARTNER_NOT_FOUND,
 						{ id }
 					);
 				}
 
 				return ctx.call(
-					"tourGuide.model.update",
+					"servicePartner.model.update",
 					{ id, ...updateFields },
 					{ meta: ctx.meta }
 				);
@@ -174,7 +145,7 @@ module.exports = {
 		},
 
 		/**
-		 * Toggle the isActive field of a tour guide.
+		 * Toggle the isActive field of a service partner.
 		 * Requires admin role.
 		 */
 		toggleActive: {
@@ -187,32 +158,26 @@ module.exports = {
 				const { id } = ctx.params;
 
 				const existing = await ctx.call(
-					"tourGuide.model.get",
+					"servicePartner.model.get",
 					{ id },
 					{ meta: ctx.meta }
 				).catch(() => null);
 
 				if (!existing) {
 					throw new MoleculerClientError(
-						"Tour guide not found.",
+						"Service partner not found.",
 						404,
-						ERROR_CODES.NOT_FOUND,
+						ERROR_CODES.PARTNER_NOT_FOUND,
 						{ id }
 					);
 				}
 
 				return ctx.call(
-					"tourGuide.model.update",
+					"servicePartner.model.update",
 					{ id, isActive: !existing.isActive },
 					{ meta: ctx.meta }
 				);
 			},
-		},
-	},
-
-	events: {
-		"tourGuide.created"(payload) {
-			this.logger.info("Tour guide created:", payload.guide?.name || payload);
 		},
 	},
 };

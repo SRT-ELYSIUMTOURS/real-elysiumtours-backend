@@ -112,7 +112,8 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\gsito\\\\OneDrive\\\\Desktop\\\\MY_CODES\\\\elysiumtours-frontend\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\gsito\\\\OneDrive\\\\Desktop\\\\MY_CODES\\\\elysiumtours-backend\\\\real-elysiumtours-backend\" -Recurse -Directory)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\gsito\\\\OneDrive\\\\Desktop\\\\MY_CODES\\\\elysiumtours-backend\\\\real-elysiumtours-backend\" -Recurse -Directory)",
+      "mcp__playwright__browser_take_screenshot"
     ]
   }
 }

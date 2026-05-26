@@ -40,8 +40,9 @@ const AttractionSchema = new mongoose.Schema(
 			default: true,
 		},
 		operatingHours: {
-			open: { type: String },
-			close: { type: String },
+			open:     { type: String },
+			close:    { type: String },
+			weekdays: { type: String },
 		},
 		contactInfo: {
 			phone: { type: String },

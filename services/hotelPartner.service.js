@@ -40,7 +40,7 @@ module.exports = {
 			params: {
 				destinationId: "string|optional",
 				tier: "string|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
@@ -238,7 +238,7 @@ module.exports = {
 				closeOutDates: "array|optional",
 				amenities: "array|optional",
 				images: "array|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;

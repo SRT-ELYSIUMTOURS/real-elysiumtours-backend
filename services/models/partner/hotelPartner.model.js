@@ -83,6 +83,19 @@ const HotelPartnerSchema = new mongoose.Schema(
 		reviewCount: { type: Number, default: 0 },
 		shortDescription: { type: String },
 		priceRange: { type: String, enum: ["budget", "moderate", "premium", "luxury"] },
+		packages: {
+			type: [
+				{
+					id:          { type: String },
+					title:       { type: String },
+					price:       { type: String },
+					description: { type: String },
+					features:    { type: [String], default: [] },
+					highlighted: { type: Boolean, default: false },
+				},
+			],
+			default: [],
+		},
 		isActive: {
 			type: Boolean,
 			default: true,
@@ -128,6 +141,7 @@ module.exports = {
 			"reviewCount",
 			"shortDescription",
 			"priceRange",
+			"packages",
 			"isActive",
 			"createdAt",
 			"updatedAt",
@@ -151,6 +165,7 @@ module.exports = {
 			reviewCount: "number|optional",
 			shortDescription: "string|optional",
 			priceRange: "string|optional",
+			packages: "array|optional",
 			isActive: "boolean|optional",
 		},
 	},

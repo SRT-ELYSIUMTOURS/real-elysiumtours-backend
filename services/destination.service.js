@@ -110,7 +110,7 @@ module.exports = {
 			auth: undefined,
 			params: {
 				region: "string|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
 				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
 			},
@@ -241,7 +241,7 @@ module.exports = {
 				gpsCoords: "object|optional",
 				images: "array|optional",
 				highlights: "array|optional",
-				isActive: "boolean|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
 				const { id, ...updateFields } = ctx.params;
