@@ -177,6 +177,8 @@ const TourPackageSchema = new mongoose.Schema(
 				title: { type: String },
 				description: { type: String },
 				image: { type: String },
+				tags: { type: [String], default: [] },
+				gallerySections: { type: [String], enum: ["nature", "culture", "activities"], default: [] },
 			},
 		],
 		inclusions: {
@@ -399,6 +401,7 @@ module.exports = {
 			status: "string|optional",
 			highlights: "array|optional",
 			tourHighlights: "array|optional",
+				// each highlight: { title, description, image, tags, gallerySections }
 			inclusions: "array|optional",
 			exclusions: "array|optional",
 			itinerary: "array|optional",

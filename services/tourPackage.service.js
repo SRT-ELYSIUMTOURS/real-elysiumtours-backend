@@ -1216,6 +1216,68 @@ module.exports = {
 				return ctx.call("tourPackage.model.incrementField", { id: ctx.params.packageId, field: "viewCount" }, { meta: ctx.meta });
 			},
 		},
+
+		/**
+		 * Aggregate all highlight and gallery images from published tour packages.
+		 * Used by the gallery page — highlights carry per-image metadata (tags, gallerySections);
+		 * raw images[] entries inherit the union of their tour's highlight tags.
+		 */
+		listGalleryImages: {
+			auth: undefined,
+			params: {
+				section: "string|optional",
+			},
+			async handler(ctx) {
+				const { section } = ctx.params;
+
+				const model = await ctx.call("tourPackage.model.find", {
+					query: { isActive: true, status: "published" },
+					fields: ["_id", "title", "slug", "tourHighlights", "images", "tags"],
+				});
+
+				const items = [];
+
+				for (const tour of model) {
+					const highlights = tour.tourHighlights || [];
+					const unionTags = [...new Set(highlights.flatMap(h => h.tags || []))];
+
+					for (const h of highlights) {
+						if (!h.image) continue;
+						const sections = h.gallerySections || [];
+						if (section && !sections.includes(section)) continue;
+						items.push({
+							image:           h.image,
+							title:           h.title || tour.title,
+							description:     h.description || "",
+							tags:            h.tags || [],
+							gallerySections: sections,
+							tourTitle:       tour.title,
+							tourSlug:        tour.slug,
+							source:          "highlight",
+						});
+					}
+
+					if (!section) {
+						for (const img of (tour.images || [])) {
+							const alreadyAdded = highlights.some(h => h.image === img);
+							if (alreadyAdded) continue;
+							items.push({
+								image:           img,
+								title:           tour.title,
+								description:     "",
+								tags:            unionTags,
+								gallerySections: [],
+								tourTitle:       tour.title,
+								tourSlug:        tour.slug,
+								source:          "gallery",
+							});
+						}
+					}
+				}
+
+				return items;
+			},
+		},
 	},
 
 	methods: {
@@ -1287,6 +1349,7 @@ module.exports = {
 
 			return results;
 		},
+
 	},
 
 	events: {

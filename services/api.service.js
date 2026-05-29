@@ -963,6 +963,7 @@ module.exports = {
 				aliases: {
 					"GET /": "tourPackage.list",
 					"GET /search": "tourPackage.search",
+					"GET /gallery-images": "tourPackage.listGalleryImages",
 					"GET /slug/:slug": "tourPackage.getBySlug",
 					"GET /:id": "tourPackage.get",
 					"POST /:packageId/view": "tourPackage.incrementViewCount",
@@ -995,6 +996,17 @@ module.exports = {
 				},
 			},
 
+			// ─── Tourist: Public blog browsing ───
+			{
+				path: "/api/v2/tourist/blog",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "blog.list",
+					"GET /slug/:slug": "blog.getBySlug",
+				},
+			},
+
 			// ─── Tourist: Public review browsing ───
 			{
 				path: "/api/v2/tourist/reviews",
@@ -1024,6 +1036,38 @@ module.exports = {
 					"GET /photographers/:id": "photographer.get",
 					"GET /services": "servicePartner.list",
 					"GET /services/:id": "servicePartner.get",
+					"GET /gallery-summary": async (req, res) => {
+						try {
+							const broker = req.$service.broker;
+							const [hotels, attractions, dining, transport, guides] = await Promise.all([
+								broker.call("hotelPartner.model.find",      { query: { isActive: true }, fields: ["coverImage", "images"], limit: 100 }),
+								broker.call("attraction.model.find",        { query: { isActive: true }, fields: ["coverImage", "images"], limit: 100 }),
+								broker.call("diningPartner.model.find",     { query: { isActive: true }, fields: ["coverImage", "images"], limit: 100 }),
+								broker.call("transportProvider.model.find", { query: { isActive: true }, fields: ["coverImage", "images"], limit: 100 }),
+								broker.call("tourGuide.model.find",         { query: { isActive: true }, fields: ["coverImage", "images"], limit: 100 }),
+							]);
+
+							const summarise = (records) => {
+								const images = (records || []).flatMap(r => [r.coverImage, ...(r.images || [])].filter(Boolean));
+								return { coverImage: records?.[0]?.coverImage || null, count: images.length };
+							};
+
+							const result = [
+								{ type: "accommodation",  label: "Accommodation",        ...summarise(hotels) },
+								{ type: "tour-sites",     label: "Tour Sites & Events",   ...summarise(attractions) },
+								{ type: "transportation", label: "Transportation",         ...summarise(transport) },
+								{ type: "restaurants",    label: "Restaurants & Dining",  ...summarise(dining) },
+								{ type: "tour-guides",    label: "Tour Guides",           ...summarise(guides) },
+							];
+
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(result));
+						} catch (err) {
+							res.statusCode = 500;
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify({ error: err.message }));
+						}
+					},
 				},
 			},
 
