@@ -99,21 +99,152 @@ module.exports = {
 		updateProfile: {
 			auth: "required",
 			params: {
-				firstName: "string|optional",
-				lastName: "string|optional",
-				phone: "string|optional",
+				firstName:   { type: "string", optional: true },
+				lastName:    { type: "string", optional: true },
+				phone:       { type: "string", optional: true },
+				nationality: { type: "string", optional: true },
+				dateOfBirth: { type: "string", optional: true },
+				tourTypes:   { type: "array",  optional: true, items: "string" },
+				groupSize:   { type: "string", optional: true },
+				language:    { type: "string", optional: true },
+				location:    { type: "string", optional: true },
 			},
 			async handler(ctx) {
 				const userId = ctx.meta.user.id;
-				const { firstName, lastName, phone } = ctx.params;
+				const { firstName, lastName, phone, nationality, dateOfBirth, tourTypes, groupSize, language, location } = ctx.params;
 
 				const updateData = { id: userId };
-				if (firstName !== undefined) updateData.firstName = firstName;
-				if (lastName !== undefined) updateData.lastName = lastName;
-				if (phone !== undefined) updateData.phone = phone;
+				if (firstName   !== undefined) updateData.firstName   = firstName;
+				if (lastName    !== undefined) updateData.lastName    = lastName;
+				if (phone       !== undefined) updateData.phone       = phone;
+				if (nationality !== undefined) updateData.nationality = nationality;
+				if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
+				if (tourTypes   !== undefined) updateData.tourTypes   = tourTypes;
+				if (groupSize   !== undefined) updateData.groupSize   = groupSize;
+				if (language    !== undefined) updateData.language    = language;
+				if (location    !== undefined) updateData.location    = location;
 
 				const updated = await ctx.call("user.model.update", updateData);
 				return updated;
+			},
+		},
+
+		/**
+		 * Save an avatar URL on the authenticated user's record.
+		 * The actual file upload to Cloudinary is done client-side; this
+		 * endpoint only persists the resulting URL.
+		 */
+		uploadAvatar: {
+			auth: "required",
+			params: {
+				avatarUrl: "string",
+			},
+			async handler(ctx) {
+				const updated = await ctx.call("user.model.update", {
+					id: ctx.meta.user.id,
+					avatar: ctx.params.avatarUrl,
+				});
+				return { avatar: updated.avatar };
+			},
+		},
+
+		/**
+		 * Get the authenticated user's wishlist (populated with tour package details).
+		 */
+		getWishlist: {
+			auth: "required",
+			async handler(ctx) {
+				const svc = this.broker.getLocalService("user.model");
+				if (!svc?.adapter?.model) throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				const user = await svc.adapter.model
+					.findById(ctx.meta.user.id)
+					.populate("wishlist", "title slug coverImage price destinations isFeatured")
+					.lean();
+				if (!user) throw new MoleculerClientError("User not found.", 404, ERROR_CODES.USER_NOT_FOUND);
+				return user.wishlist || [];
+			},
+		},
+
+		/**
+		 * Add a tour package to the authenticated user's wishlist.
+		 */
+		addToWishlist: {
+			auth: "required",
+			params: { tourId: "string" },
+			async handler(ctx) {
+				const updated = await ctx.call("user.model.updateDirect", {
+					id: ctx.meta.user.id,
+					update: { $addToSet: { wishlist: ctx.params.tourId } },
+				});
+				return { wishlist: updated?.wishlist || [] };
+			},
+		},
+
+		/**
+		 * Remove a tour package from the authenticated user's wishlist.
+		 */
+		removeFromWishlist: {
+			auth: "required",
+			params: { tourId: "string" },
+			async handler(ctx) {
+				const updated = await ctx.call("user.model.updateDirect", {
+					id: ctx.meta.user.id,
+					update: { $pull: { wishlist: ctx.params.tourId } },
+				});
+				return { wishlist: updated?.wishlist || [] };
+			},
+		},
+
+		/**
+		 * Get the authenticated user's notification preferences.
+		 */
+		getPreferences: {
+			auth: "required",
+			async handler(ctx) {
+				const user = await ctx.call("user.model.get", { id: ctx.meta.user.id });
+				if (!user) {
+					throw new MoleculerClientError("User not found.", 404, ERROR_CODES.USER_NOT_FOUND);
+				}
+				// Return defaults if not yet set
+				return {
+					emailPayment:     user.notificationPreferences?.emailPayment     ?? true,
+					whatsappBooking:  user.notificationPreferences?.whatsappBooking  ?? true,
+					tourConfirmation: user.notificationPreferences?.tourConfirmation ?? true,
+					contractSigning:  user.notificationPreferences?.contractSigning  ?? false,
+					wishlistDrop:     user.notificationPreferences?.wishlistDrop     ?? true,
+					marketing:        user.notificationPreferences?.marketing        ?? false,
+				};
+			},
+		},
+
+		/**
+		 * Update the authenticated user's notification preferences.
+		 */
+		updatePreferences: {
+			auth: "required",
+			params: {
+				emailPayment:     { type: "boolean", optional: true },
+				whatsappBooking:  { type: "boolean", optional: true },
+				tourConfirmation: { type: "boolean", optional: true },
+				contractSigning:  { type: "boolean", optional: true },
+				wishlistDrop:     { type: "boolean", optional: true },
+				marketing:        { type: "boolean", optional: true },
+			},
+			async handler(ctx) {
+				const { emailPayment, whatsappBooking, tourConfirmation, contractSigning, wishlistDrop, marketing } = ctx.params;
+				const prefs = {};
+				if (emailPayment     !== undefined) prefs["notificationPreferences.emailPayment"]     = emailPayment;
+				if (whatsappBooking  !== undefined) prefs["notificationPreferences.whatsappBooking"]  = whatsappBooking;
+				if (tourConfirmation !== undefined) prefs["notificationPreferences.tourConfirmation"] = tourConfirmation;
+				if (contractSigning  !== undefined) prefs["notificationPreferences.contractSigning"]  = contractSigning;
+				if (wishlistDrop     !== undefined) prefs["notificationPreferences.wishlistDrop"]     = wishlistDrop;
+				if (marketing        !== undefined) prefs["notificationPreferences.marketing"]        = marketing;
+
+				const updated = await ctx.call("user.model.updateDirect", {
+					id: ctx.meta.user.id,
+					update: prefs,
+				});
+				return updated?.notificationPreferences || {};
 			},
 		},
 

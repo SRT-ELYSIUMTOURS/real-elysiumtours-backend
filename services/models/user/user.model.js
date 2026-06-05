@@ -35,6 +35,42 @@ const UserSchema = new mongoose.Schema(
 		avatar: {
 			type: String,
 		},
+		nationality: {
+			type: String,
+			trim: true,
+		},
+		dateOfBirth: {
+			type: String,
+			trim: true,
+		},
+		tourTypes: [{
+			type: String,
+			trim: true,
+		}],
+		groupSize: {
+			type: String,
+			trim: true,
+		},
+		language: {
+			type: String,
+			trim: true,
+		},
+		location: {
+			type: String,
+			trim: true,
+		},
+		wishlist: [{
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "TourPackage",
+		}],
+		notificationPreferences: {
+			emailPayment:     { type: Boolean, default: true  },
+			whatsappBooking:  { type: Boolean, default: true  },
+			tourConfirmation: { type: Boolean, default: true  },
+			contractSigning:  { type: Boolean, default: false },
+			wishlistDrop:     { type: Boolean, default: true  },
+			marketing:        { type: Boolean, default: false },
+		},
 		role: {
 			type: String,
 			enum: Object.values(USER_ROLES),
@@ -98,6 +134,14 @@ module.exports = {
 			"isVerified",
 			"status",
 			"lastLogin",
+			"nationality",
+			"dateOfBirth",
+			"tourTypes",
+			"groupSize",
+			"language",
+			"location",
+			"wishlist",
+			"notificationPreferences",
 			"createdAt",
 			"updatedAt",
 		],
