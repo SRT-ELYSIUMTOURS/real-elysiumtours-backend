@@ -40,6 +40,7 @@ const MONGOOSE_COLLECTIONS = [
 	"photographerpartners",
 	"servicepartners",
 	"blogs",
+	"sessions",
 ];
 
 // Shared connection promise — ensures a single mongoose.connect() call

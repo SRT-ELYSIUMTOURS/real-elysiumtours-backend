@@ -71,6 +71,10 @@ const UserSchema = new mongoose.Schema(
 			wishlistDrop:     { type: Boolean, default: true  },
 			marketing:        { type: Boolean, default: false },
 		},
+		paymentAlertEmail: {
+			type: String,
+			trim: true,
+		},
 		role: {
 			type: String,
 			enum: Object.values(USER_ROLES),
@@ -101,6 +105,16 @@ const UserSchema = new mongoose.Schema(
 			type: String,
 		},
 		resetPasswordExpiry: {
+			type: Date,
+		},
+		twoFactorEnabled: {
+			type: Boolean,
+			default: false,
+		},
+		twoFactorCode: {
+			type: String,
+		},
+		twoFactorExpiry: {
 			type: Date,
 		},
 	},
@@ -142,6 +156,8 @@ module.exports = {
 			"location",
 			"wishlist",
 			"notificationPreferences",
+			"paymentAlertEmail",
+			"twoFactorEnabled",
 			"createdAt",
 			"updatedAt",
 		],

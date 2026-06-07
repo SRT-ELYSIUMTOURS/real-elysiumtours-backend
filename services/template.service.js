@@ -377,6 +377,38 @@ module.exports = {
 					channel: "email",
 					variables: ["firstName", "tourName", "tourDate"],
 				},
+				{
+					name: "two_factor_login",
+					subject: "Your Login Verification Code",
+					body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+	<h1 style="color: #2c3e50;">Login Verification</h1>
+	<p>Hi {{firstName}},</p>
+	<p>Use the code below to complete your login. It expires in 10 minutes.</p>
+	<div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2c3e50; border-radius: 8px;">
+		{{code}}
+	</div>
+	<p>If you did not attempt to log in, your account may be at risk. Please change your password immediately.</p>
+	<p>Best regards,<br/>The Elysium Tours Team</p>
+</div>`,
+					channel: "email",
+					variables: ["firstName", "code"],
+				},
+				{
+					name: "two_factor_setup",
+					subject: "Enable Two-Factor Authentication",
+					body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+	<h1 style="color: #2c3e50;">Two-Factor Authentication Setup</h1>
+	<p>Hi {{firstName}},</p>
+	<p>You requested to enable two-factor authentication. Enter the code below to confirm:</p>
+	<div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2c3e50; border-radius: 8px;">
+		{{code}}
+	</div>
+	<p>This code expires in 10 minutes. If you did not make this request, you can safely ignore this email.</p>
+	<p>Best regards,<br/>The Elysium Tours Team</p>
+</div>`,
+					channel: "email",
+					variables: ["firstName", "code"],
+				},
 			];
 		},
 	},

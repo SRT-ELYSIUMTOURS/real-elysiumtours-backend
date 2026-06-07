@@ -37,6 +37,7 @@ module.exports = {
 		},
 
 		// Global hook: coerce common query params from strings to numbers
+		// and pass device info through meta for session tracking
 		onBeforeCall(ctx, route, req) {
 			const numericFields = ["page", "pageSize", "limit", "offset", "maxDistanceKm", "minPrice", "maxPrice", "minGroupSize", "numberOfPassengers", "groupSize", "commissionRate"];
 			for (const field of numericFields) {
@@ -47,6 +48,11 @@ module.exports = {
 					}
 				}
 			}
+			ctx.meta.userAgent = req.headers["user-agent"] || null;
+			ctx.meta.clientIp = (req.headers["x-forwarded-for"] || "").split(",")[0].trim()
+				|| req.connection?.remoteAddress
+				|| req.socket?.remoteAddress
+				|| null;
 		},
 
 		routes: [
@@ -401,6 +407,7 @@ module.exports = {
 					"POST /register": "auth.register",
 					"POST /login": "auth.login",
 					"POST /verify-otp": "auth.verifyOTP",
+					"POST /verify-2fa": "auth.verifyTwoFactorLogin",
 					"POST /refresh-token": "auth.refreshToken",
 					"POST /forgot-password": "auth.forgotPassword",
 					"POST /reset-password": "auth.resetPassword",
@@ -962,6 +969,7 @@ module.exports = {
 				authentication: false,
 				aliases: {
 					"GET /": "tourPackage.list",
+					"GET /types": "tourPackage.getTourTypes",
 					"GET /search": "tourPackage.search",
 					"GET /gallery-images": "tourPackage.listGalleryImages",
 					"GET /slug/:slug": "tourPackage.getBySlug",
@@ -1104,6 +1112,14 @@ module.exports = {
 					"PUT /avatar": "user.uploadAvatar",
 					"GET /preferences": "user.getPreferences",
 					"PUT /preferences": "user.updatePreferences",
+					"PUT /security-email": "user.updateSecurityEmail",
+					"DELETE /account": "user.deactivateAccount",
+					"POST /2fa/init": "auth.initTwoFactor",
+					"POST /2fa/confirm": "auth.confirmTwoFactor",
+					"DELETE /2fa": "auth.disableTwoFactor",
+					"GET /sessions": "user.listSessions",
+					"DELETE /sessions/:sessionId": "user.revokeSession",
+					"DELETE /sessions": "user.revokeAllOtherSessions",
 					"GET /wishlist": "user.getWishlist",
 					"POST /wishlist/:tourId": "user.addToWishlist",
 					"DELETE /wishlist/:tourId": "user.removeFromWishlist",
@@ -1111,6 +1127,7 @@ module.exports = {
 					"GET /bookings/:id": "booking.getBooking",
 					"POST /bookings": "booking.createBooking",
 					"PUT /bookings/:id/cancel": "booking.cancelBooking",
+					"GET /review-stats": "review.getMyStats",
 					"GET /reviews/tour/:tourPackageId": "review.listByTour",
 					"GET /reviews/stats/:tourPackageId": "review.getStats",
 					"POST /reviews": "review.create",
@@ -1201,6 +1218,7 @@ module.exports = {
 					email: decoded.email,
 					role: decoded.role,
 					organizationId: decoded.organizationId || null,
+					sessionId: decoded.sessionId || null,
 				};
 
 				return ctx.meta.user;

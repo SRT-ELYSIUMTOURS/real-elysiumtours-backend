@@ -19,6 +19,26 @@ module.exports = {
 
 	actions: {
 		/**
+		 * Return the available tour type and category options for user preference chips.
+		 * Derived from the tourPackage model enums — public, no auth required.
+		 */
+		getTourTypes: {
+			auth: undefined,
+			async handler() {
+				return {
+					types: [
+						{ value: "day_tour",  label: "Day Tour",  group: "format"   },
+						{ value: "multi_day", label: "Multi-Day", group: "format"   },
+						{ value: "express",   label: "Express",   group: "format"   },
+						{ value: "leisure",   label: "Leisure",   group: "category" },
+						{ value: "business",  label: "Business",  group: "category" },
+						{ value: "ekolure",   label: "Ekolure",   group: "category" },
+					],
+				};
+			},
+		},
+
+		/**
 		 * Search tour packages using text search with optional filters.
 		 * Public action.
 		 */

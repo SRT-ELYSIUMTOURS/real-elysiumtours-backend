@@ -8,7 +8,7 @@ const SALT_ROUNDS = 12;
 
 module.exports = {
 	name: "user",
-	dependencies: ["user.model"],
+	dependencies: ["user.model", "session.model"],
 
 	actions: {
 		/**
@@ -137,12 +137,13 @@ module.exports = {
 		uploadAvatar: {
 			auth: "required",
 			params: {
-				avatarUrl: "string",
+				// empty: true allows "" so the client can clear the avatar by passing an empty string
+				avatarUrl: { type: "string", empty: true, optional: true },
 			},
 			async handler(ctx) {
 				const updated = await ctx.call("user.model.update", {
 					id: ctx.meta.user.id,
-					avatar: ctx.params.avatarUrl,
+					avatar: ctx.params.avatarUrl || null,
 				});
 				return { avatar: updated.avatar };
 			},
@@ -379,6 +380,113 @@ module.exports = {
 
 				const updated = await ctx.call("user.model.update", { id, status });
 				return updated;
+			},
+		},
+
+		/**
+		 * Deactivate the authenticated user's own account.
+		 * Sets status to "inactive". Admin can reactivate via updateUserStatus.
+		 */
+		deactivateAccount: {
+			auth: "required",
+			async handler(ctx) {
+				await ctx.call("user.model.update", {
+					id: ctx.meta.user.id,
+					status: "inactive",
+				});
+				return { message: "Account deactivated." };
+			},
+		},
+
+		/**
+		 * Update the email address where payment milestone reminder emails are sent.
+		 * Defaults to the account email when not set.
+		 */
+		updateSecurityEmail: {
+			auth: "required",
+			params: {
+				paymentAlertEmail: "email",
+			},
+			async handler(ctx) {
+				const updated = await ctx.call("user.model.updateDirect", {
+					id: ctx.meta.user.id,
+					update: { paymentAlertEmail: ctx.params.paymentAlertEmail },
+				});
+				return { paymentAlertEmail: updated?.paymentAlertEmail };
+			},
+		},
+
+		/**
+		 * List all active sessions (connected devices) for the authenticated user.
+		 */
+		listSessions: {
+			auth: "required",
+			async handler(ctx) {
+				const svc = this.broker.getLocalService("session.model");
+				if (!svc?.adapter?.model) {
+					throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				}
+				const sessions = await svc.adapter.model
+					.find({ userId: ctx.meta.user.id, isActive: true })
+					.sort({ lastActive: -1 })
+					.lean();
+
+				const currentSessionId = ctx.meta.user.sessionId || null;
+				return sessions.map((s) => ({
+					_id: s._id.toString(),
+					deviceLabel: s.deviceLabel || "Unknown Device",
+					ip: s.ip || null,
+					lastActive: s.lastActive,
+					isCurrent: currentSessionId ? s._id.toString() === currentSessionId : false,
+					createdAt: s.createdAt,
+				}));
+			},
+		},
+
+		/**
+		 * Revoke a specific session by ID. Verifies ownership before revoking.
+		 */
+		revokeSession: {
+			auth: "required",
+			params: { sessionId: "string" },
+			async handler(ctx) {
+				const svc = this.broker.getLocalService("session.model");
+				if (!svc?.adapter?.model) {
+					throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				}
+				const session = await svc.adapter.model.findById(ctx.params.sessionId).lean();
+				if (!session) {
+					throw new MoleculerClientError("Session not found.", 404, ERROR_CODES.NOT_FOUND);
+				}
+				if (session.userId.toString() !== ctx.meta.user.id) {
+					throw new MoleculerClientError("Access denied.", 403, ERROR_CODES.FORBIDDEN);
+				}
+				await svc.adapter.model.findByIdAndUpdate(
+					ctx.params.sessionId,
+					{ $set: { isActive: false } }
+				);
+				return { message: "Session revoked." };
+			},
+		},
+
+		/**
+		 * Revoke all active sessions for the authenticated user except the current one.
+		 */
+		revokeAllOtherSessions: {
+			auth: "required",
+			async handler(ctx) {
+				const svc = this.broker.getLocalService("session.model");
+				if (!svc?.adapter?.model) {
+					throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				}
+				const mongoose = require("mongoose");
+				const currentSessionId = ctx.meta.user.sessionId;
+				const query = { userId: ctx.meta.user.id, isActive: true };
+				if (currentSessionId) {
+					query._id = { $ne: new mongoose.Types.ObjectId(currentSessionId) };
+				}
+				await svc.adapter.model.updateMany(query, { $set: { isActive: false } });
+				return { message: "All other sessions revoked." };
 			},
 		},
 

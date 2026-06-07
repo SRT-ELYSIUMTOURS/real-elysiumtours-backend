@@ -352,6 +352,28 @@ module.exports = {
 				return this.computeStats(ctx, ctx.params.tourPackageId);
 			},
 		},
+
+		/**
+		 * Get the current user's review statistics across all their reviews.
+		 * Used to power the "Satisfaction" stat in the profile sidebar.
+		 */
+		getMyStats: {
+			auth: "required",
+			async handler(ctx) {
+				const customerId = ctx.meta.user.id;
+				const reviews = await ctx.call("review.model.find", {
+					query: { customerId },
+				});
+
+				const reviewCount = reviews.length;
+				const avgRating = reviewCount > 0
+					? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+					: 0;
+				const satisfactionPercent = Math.round((avgRating / 5) * 100);
+
+				return { avgRating: Math.round(avgRating * 10) / 10, reviewCount, satisfactionPercent };
+			},
+		},
 	},
 
 	methods: {

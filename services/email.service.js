@@ -215,6 +215,40 @@ module.exports = {
 		},
 
 		/**
+		 * When a 2FA login challenge is issued, send the OTP to the user's email.
+		 */
+		"auth.twoFactorChallenge"(ctx) {
+			const { email, firstName, code } = ctx.params;
+
+			this.broker
+				.call("email.sendTemplated", {
+					to: email,
+					templateName: "two_factor_login",
+					data: { firstName: firstName || "there", code, email },
+				})
+				.catch((err) => {
+					this.logger.error(`Failed to send 2FA login code to ${email}:`, err.message);
+				});
+		},
+
+		/**
+		 * When a user initiates 2FA setup, send the confirmation OTP.
+		 */
+		"auth.twoFactorInit"(ctx) {
+			const { email, firstName, code } = ctx.params;
+
+			this.broker
+				.call("email.sendTemplated", {
+					to: email,
+					templateName: "two_factor_setup",
+					data: { firstName: firstName || "there", code, email },
+				})
+				.catch((err) => {
+					this.logger.error(`Failed to send 2FA setup code to ${email}:`, err.message);
+				});
+		},
+
+		/**
 		 * When a user verifies their email, send welcome email.
 		 */
 		"auth.verified"(ctx) {

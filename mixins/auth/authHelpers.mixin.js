@@ -13,18 +13,33 @@ module.exports = {
 		/**
 		 * Generate a JWT access token for the given user.
 		 * @param {Object} user - User document
+		 * @param {string|null} sessionId - Optional session ID to embed in the token
 		 * @returns {string} Signed JWT
 		 */
-		generateAccessToken(user) {
+		generateAccessToken(user, sessionId = null) {
 			return jwt.sign(
 				{
 					id: user._id,
 					email: user.email,
 					role: user.role,
 					organizationId: user.organizationId || null,
+					...(sessionId ? { sessionId } : {}),
 				},
 				process.env.JWT_SECRET,
 				{ expiresIn: process.env.JWT_EXPIRY || "1h" }
+			);
+		},
+
+		/**
+		 * Generate a short-lived challenge token used for the 2FA login step.
+		 * @param {string} userId
+		 * @returns {string} Signed JWT (10 min expiry)
+		 */
+		generateChallengeToken(userId) {
+			return jwt.sign(
+				{ id: userId, type: "2fa_challenge" },
+				process.env.JWT_SECRET,
+				{ expiresIn: "10m" }
 			);
 		},
 
