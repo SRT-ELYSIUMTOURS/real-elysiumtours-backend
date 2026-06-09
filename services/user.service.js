@@ -159,7 +159,7 @@ module.exports = {
 				if (!svc?.adapter?.model) throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
 				const user = await svc.adapter.model
 					.findById(ctx.meta.user.id)
-					.populate("wishlist", "title slug coverImage price destinations isFeatured")
+					.populate("wishlist", "title slug coverImage basePrice pricingTiers destinationId destinations availabilityBadge startDate rating isFeatured")
 					.lean();
 				if (!user) throw new MoleculerClientError("User not found.", 404, ERROR_CODES.USER_NOT_FOUND);
 				return user.wishlist || [];
@@ -173,10 +173,13 @@ module.exports = {
 			auth: "required",
 			params: { tourId: "string" },
 			async handler(ctx) {
-				const updated = await ctx.call("user.model.updateDirect", {
-					id: ctx.meta.user.id,
-					update: { $addToSet: { wishlist: ctx.params.tourId } },
-				});
+				const svc = this.broker.getLocalService("user.model");
+				if (!svc?.adapter?.model) throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				const updated = await svc.adapter.model.findByIdAndUpdate(
+					ctx.meta.user.id,
+					{ $addToSet: { wishlist: ctx.params.tourId } },
+					{ new: true, lean: true }
+				);
 				return { wishlist: updated?.wishlist || [] };
 			},
 		},
@@ -188,10 +191,13 @@ module.exports = {
 			auth: "required",
 			params: { tourId: "string" },
 			async handler(ctx) {
-				const updated = await ctx.call("user.model.updateDirect", {
-					id: ctx.meta.user.id,
-					update: { $pull: { wishlist: ctx.params.tourId } },
-				});
+				const svc = this.broker.getLocalService("user.model");
+				if (!svc?.adapter?.model) throw new MoleculerClientError("Internal error.", 500, ERROR_CODES.INTERNAL_ERROR);
+				const updated = await svc.adapter.model.findByIdAndUpdate(
+					ctx.meta.user.id,
+					{ $pull: { wishlist: ctx.params.tourId } },
+					{ new: true, lean: true }
+				);
 				return { wishlist: updated?.wishlist || [] };
 			},
 		},

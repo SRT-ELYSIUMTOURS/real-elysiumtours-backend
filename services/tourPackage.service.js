@@ -178,7 +178,7 @@ module.exports = {
 
 				if (destinationId) query.destinationId = destinationId;
 				if (organizationId) query.organizationId = organizationId;
-				if (country) query.country = country.toLowerCase();
+				if (country) query.country = new RegExp(`^${country}$`, "i");
 				if (category) query.category = category.toLowerCase();
 				if (tourType) query.tourType = tourType;
 				if (typeof featured === "boolean") query.featured = featured;

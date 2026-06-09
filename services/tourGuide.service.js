@@ -30,7 +30,7 @@ module.exports = {
 				const query = {};
 
 				if (typeof isActive === "boolean") query.isActive = isActive;
-				if (country) query.country = country;
+				if (country) query.country = new RegExp(`^${country}$`, "i");
 
 				const SORT_MAP = {
 					rating_desc: "-rating",

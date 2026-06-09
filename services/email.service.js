@@ -148,10 +148,7 @@ module.exports = {
 				port,
 				secure: useSSL,
 				requireTLS: !useSSL,
-				auth: {
-					user: this.settings.smtp.auth.user,
-					pass: this.settings.smtp.auth.pass,
-				},
+				auth: this.settings.smtp.auth,
 				tls: {
 					rejectUnauthorized: false,
 				},

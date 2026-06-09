@@ -2,6 +2,7 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const crypto = require("crypto");
+const https = require("https");
 const AuthHelpersMixin = require("../mixins/auth/authHelpers.mixin");
 const { ERROR_CODES } = require("../utils/constants");
 
@@ -721,6 +722,137 @@ module.exports = {
 				return { message: "A new OTP has been sent to your email." };
 			},
 		},
+
+		/**
+		 * Google OAuth login — verifies Google ID token, upserts user, issues JWT.
+		 * Frontend-initiates flow: browser gets ID token from Google, sends it here.
+		 */
+		googleLogin: {
+			auth: undefined,
+			params: {
+				accessToken: "string",
+			},
+			async handler(ctx) {
+				// Fetch the user's profile from Google's userinfo endpoint
+				let googleUser;
+				try {
+					googleUser = await new Promise((resolve, reject) => {
+						const req = https.get(
+							`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${encodeURIComponent(ctx.params.accessToken)}`,
+							(res) => {
+								let data = "";
+								res.on("data", (chunk) => { data += chunk; });
+								res.on("end", () => {
+									const parsed = JSON.parse(data);
+									if (parsed.error || !parsed.sub) reject(new Error(parsed.error_description || "Invalid token"));
+									else resolve(parsed);
+								});
+							}
+						);
+						req.on("error", reject);
+					});
+				} catch {
+					throw new MoleculerClientError(
+						"Invalid Google token.",
+						401,
+						ERROR_CODES.INVALID_CREDENTIALS
+					);
+				}
+
+				const { sub: googleId, email, given_name: firstName, family_name: lastName, picture: avatar } = googleUser;
+
+				// Look up by googleId first, then fall back to email
+				let user = await this.broker.call("user.model.findWithSensitive", { query: { googleId } });
+
+				if (!user) {
+					user = await this.broker.call("user.model.findWithSensitive", { query: { email: email.toLowerCase() } });
+
+					if (user) {
+						// Existing email account — link Google to it
+						await ctx.call("user.model.updateDirect", {
+							id: user._id.toString(),
+							update: { googleId, authProvider: "google", isVerified: true },
+						});
+						user.googleId = googleId;
+						user.authProvider = "google";
+					} else {
+						// New user — create account
+						user = await ctx.call("user.model.create", {
+							email: email.toLowerCase(),
+							password: crypto.randomBytes(32).toString("hex"), // unusable random password
+							firstName: firstName || "User",
+							lastName: lastName || "",
+							avatar: avatar || null,
+							googleId,
+							authProvider: "google",
+							isVerified: true,
+							status: "active",
+							role: "customer",
+						});
+						ctx.emit("auth.googleRegistered", { email, firstName: firstName || "User" });
+					}
+				}
+
+				if (user.status !== "active") {
+					throw new MoleculerClientError(
+						"Account is not active.",
+						403,
+						ERROR_CODES.ACCOUNT_INACTIVE
+					);
+				}
+
+				// Create session
+				let sessionId = null;
+				try {
+					const deviceLabel = parseUserAgent(ctx.meta.userAgent);
+					const session = await ctx.call("session.model.create", {
+						userId: user._id.toString(),
+						deviceLabel,
+						ip: ctx.meta.clientIp || null,
+						lastActive: new Date(),
+						isActive: true,
+					});
+					sessionId = session._id.toString();
+				} catch {}
+
+				const accessToken = this.generateAccessToken(user, sessionId);
+				const refreshToken = this.generateRefreshToken(user);
+
+				await ctx.call("user.model.updateDirect", {
+					id: user._id.toString(),
+					update: { refreshToken, lastLogin: new Date() },
+				});
+
+				ctx.emit("auth.loggedIn", { userId: user._id.toString(), email: user.email });
+
+				return {
+					user: {
+						id: user._id.toString(),
+						email: user.email,
+						firstName: user.firstName,
+						lastName: user.lastName,
+						avatar: user.avatar || null,
+						role: user.role,
+						isVerified: true,
+						twoFactorEnabled: false,
+						authProvider: "google",
+					},
+					accessToken,
+					refreshToken,
+				};
+			},
+		},
+
+		/**
+		 * Logout — clears refresh token in DB and marks session inactive.
+		 */
+		logout: {
+			auth: "required",
+			async handler(ctx) {
+				await this.logout(ctx.meta.user.id, ctx.meta.user.sessionId);
+				return { message: "Logged out successfully." };
+			},
+		},
 	},
 
 	methods: {
@@ -735,6 +867,23 @@ module.exports = {
 				limit: 1,
 			});
 			return results && results.length > 0 ? results[0] : null;
+		},
+
+		/**
+		 * Logout — clears refresh token and marks session inactive.
+		 */
+		async logout(userId, sessionId) {
+			await this.broker.call("user.model.updateDirect", {
+				id: userId,
+				update: { refreshToken: null },
+			});
+
+			if (sessionId) {
+				await this.broker.call("session.model.updateDirect", {
+					id: sessionId,
+					update: { isActive: false },
+				}).catch(() => {}); // non-fatal if session doesn't exist
+			}
 		},
 
 		/**

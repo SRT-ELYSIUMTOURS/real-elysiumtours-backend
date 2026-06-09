@@ -87,6 +87,7 @@ module.exports = {
 					"POST /forgot-password": "auth.forgotPassword",
 					"POST /reset-password": "auth.resetPassword",
 					"POST /resend-otp": "auth.resendOTP",
+					"POST /logout": "auth.logout",
 				},
 			},
 
@@ -412,6 +413,8 @@ module.exports = {
 					"POST /forgot-password": "auth.forgotPassword",
 					"POST /reset-password": "auth.resetPassword",
 					"POST /resend-otp": "auth.resendOTP",
+					"POST /logout": "auth.logout",
+					"POST /google": "auth.googleLogin",
 				},
 			},
 
@@ -989,6 +992,17 @@ module.exports = {
 					"GET /region/:region": "destination.listByRegion",
 					"GET /slug/:slug": "destination.getBySlug",
 					"GET /:id": "destination.get",
+				},
+			},
+
+			// ─── Tourist: Public guides browsing ───
+			{
+				path: "/api/v2/tourist/guides",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": "tourGuide.list",
+					"GET /:id": "tourGuide.get",
 				},
 			},
 

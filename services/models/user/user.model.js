@@ -16,7 +16,6 @@ const UserSchema = new mongoose.Schema(
 		organizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", index: true },
 		password: {
 			type: String,
-			required: true,
 		},
 		firstName: {
 			type: String,
@@ -117,6 +116,15 @@ const UserSchema = new mongoose.Schema(
 		twoFactorExpiry: {
 			type: Date,
 		},
+		googleId: {
+			type: String,
+			sparse: true,
+		},
+		authProvider: {
+			type: String,
+			enum: ["local", "google"],
+			default: "local",
+		},
 	},
 	{
 		timestamps: true,
@@ -127,6 +135,7 @@ const UserSchema = new mongoose.Schema(
 // Indexes (email unique index is already created by `unique: true` on the field)
 UserSchema.index({ role: 1 });
 UserSchema.index({ status: 1 });
+UserSchema.index({ googleId: 1 }, { sparse: true });
 UserSchema.index({ email: 1, organizationId: 1 }, { unique: true, partialFilterExpression: { organizationId: { $exists: true } } });
 
 module.exports = {
@@ -158,12 +167,13 @@ module.exports = {
 			"notificationPreferences",
 			"paymentAlertEmail",
 			"twoFactorEnabled",
+			"authProvider",
 			"createdAt",
 			"updatedAt",
 		],
 		entityValidator: {
 			email: "email",
-			password: "string",
+			password: "string|optional",
 			firstName: "string",
 			lastName: "string",
 			phone: "string|optional",
