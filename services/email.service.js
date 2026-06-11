@@ -14,6 +14,7 @@ module.exports = {
 		from: emailConfig.from,
 		fromName: emailConfig.fromName,
 		useSendgridFallback: emailConfig.useSendgridFallback,
+		useGmailApi: emailConfig.useGmailApi,
 	},
 
 	actions: {
@@ -32,6 +33,18 @@ module.exports = {
 			async handler(ctx) {
 				const { to, subject, html, text } = ctx.params;
 
+				// ── 1. Gmail REST API (OAuth2 + HTTPS — works on Render and all cloud hosts) ──
+				if (this.settings.useGmailApi) {
+					try {
+						const messageId = await this.sendViaGmailAPI(to, subject, html);
+						this.logger.info(`Email sent via Gmail API to ${to} — messageId: ${messageId}`);
+						return { success: true, messageId };
+					} catch (err) {
+						this.logger.warn(`Gmail API send failed for ${to}: ${err.message}`);
+					}
+				}
+
+				// ── 2. SMTP (works locally; blocked on most cloud hosts) ──
 				const mailOptions = {
 					from: `"${this.settings.fromName}" <${this.settings.from}>`,
 					to,
@@ -44,13 +57,13 @@ module.exports = {
 				try {
 					const info = await transporter.sendMail(mailOptions);
 					transporter.close();
-					this.logger.info(`Email sent to ${to} — messageId: ${info.messageId}`);
+					this.logger.info(`Email sent via SMTP to ${to} — messageId: ${info.messageId}`);
 					return { success: true, messageId: info.messageId };
 				} catch (err) {
 					transporter.close();
 					this.logger.warn(`SMTP send failed for ${to}: ${err.message}`);
 
-					// Fallback to SendGrid if configured
+					// ── 3. SendGrid (final fallback) ──
 					if (this.settings.useSendgridFallback) {
 						this.logger.info(`Falling back to SendGrid for ${to}`);
 						const messageId = await this.sendViaSendGrid(to, subject, html);
@@ -166,6 +179,50 @@ module.exports = {
 			});
 
 			return transporter;
+		},
+
+		/**
+		 * Send email via Gmail REST API using OAuth2.
+		 * Uses HTTPS (port 443) — works on Render and all cloud hosts.
+		 * Requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN.
+		 *
+		 * @param {String} to - Recipient email
+		 * @param {String} subject - Email subject
+		 * @param {String} html - HTML body
+		 * @returns {Promise<String>} Gmail message ID
+		 */
+		async sendViaGmailAPI(to, subject, html) {
+			const { google } = require("googleapis");
+			const auth = this.settings.smtp.auth;
+
+			const oauth2Client = new google.auth.OAuth2(
+				auth.clientId,
+				auth.clientSecret
+			);
+			oauth2Client.setCredentials({ refresh_token: auth.refreshToken });
+
+			const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+			// Build RFC 2822 message and base64url-encode it for the Gmail API
+			const from = `"${this.settings.fromName}" <${this.settings.from}>`;
+			const rawMessage = [
+				`From: ${from}`,
+				`To: ${to}`,
+				`Subject: ${subject}`,
+				`MIME-Version: 1.0`,
+				`Content-Type: text/html; charset=utf-8`,
+				``,
+				html,
+			].join("\r\n");
+
+			const encoded = Buffer.from(rawMessage).toString("base64url");
+
+			const res = await gmail.users.messages.send({
+				userId: "me",
+				requestBody: { raw: encoded },
+			});
+
+			return res.data.id;
 		},
 
 		/**
@@ -312,8 +369,8 @@ module.exports = {
 	 * Service started lifecycle handler.
 	 */
 	started() {
-		this.logger.info("Email service started — transporter created per send.");
-
+		const primary = this.settings.useGmailApi ? "Gmail API (OAuth2/HTTPS)" : "SMTP";
+		this.logger.info(`Email service started — primary transport: ${primary}`);
 		if (this.settings.useSendgridFallback) {
 			this.logger.info("SendGrid fallback is enabled.");
 		}

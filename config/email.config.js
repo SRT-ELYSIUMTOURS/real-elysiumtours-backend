@@ -33,4 +33,7 @@ module.exports = {
   from: process.env.FROM_EMAIL || process.env.GOOGLE_OAUTH_USER || process.env.SMTP_USER || "noreply@elysiumtours.com",
   fromName: "Elysium Tours",
   useSendgridFallback: !!process.env.SENDGRID_API_KEY,
+  // Use Gmail REST API (HTTPS) instead of SMTP when OAuth2 creds are present.
+  // SMTP is blocked on Render and many cloud platforms; HTTPS is always open.
+  useGmailApi: useOAuth2,
 };
