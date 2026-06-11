@@ -143,7 +143,7 @@ module.exports = {
 		createTransporter() {
 			const port = this.settings.smtp.port;
 			const useSSL = port === 465;
-			return nodemailer.createTransport({
+			const transporter = nodemailer.createTransport({
 				host: this.settings.smtp.host,
 				port,
 				secure: useSSL,
@@ -158,6 +158,14 @@ module.exports = {
 				logger: process.env.NODE_ENV !== "production",
 				debug: process.env.NODE_ENV !== "production",
 			});
+
+			// Nodemailer auto-refreshes the OAuth2 access token using the refresh token.
+			// Log when it does so we can detect refresh-token revocation early.
+			transporter.on("token", (token) => {
+				this.logger.info(`OAuth2 access token refreshed — expires in ${Math.round((token.expires - Date.now()) / 1000)}s`);
+			});
+
+			return transporter;
 		},
 
 		/**
