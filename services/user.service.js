@@ -130,22 +130,41 @@ module.exports = {
 		},
 
 		/**
-		 * Save an avatar URL on the authenticated user's record.
-		 * The actual file upload to Cloudinary is done client-side; this
-		 * endpoint only persists the resulting URL.
+		 * Upload a new avatar or clear it.
+		 * Accepts either a base64 data URI (imageBase64) which is uploaded to Cloudinary
+		 * server-side, or a plain URL string (avatarUrl) for clearing (pass "").
 		 */
 		uploadAvatar: {
 			auth: "required",
 			params: {
-				// empty: true allows "" so the client can clear the avatar by passing an empty string
 				avatarUrl: { type: "string", empty: true, optional: true },
+				imageBase64: { type: "string", optional: true },
 			},
 			async handler(ctx) {
-				const updated = await ctx.call("user.model.update", {
+				let avatarUrl = ctx.params.avatarUrl ?? null;
+
+				if (ctx.params.imageBase64) {
+					// Decode base64 data URI → Buffer → stream → Cloudinary
+					// uploadFromUrl(dataURI) can hang in SDK v2; uploadStream is reliable.
+					const matches = ctx.params.imageBase64.match(/^data:([A-Za-z0-9+/\-]+);base64,(.+)$/s);
+					if (!matches) {
+						throw new MoleculerClientError("Invalid image format.", 400, ERROR_CODES.VALIDATION_ERROR);
+					}
+					const { Readable } = require("stream");
+					const { uploadStream } = require("../utils/cloudinary.utils");
+					const buffer = Buffer.from(matches[2], "base64");
+					const readable = new Readable({ read() {} });
+					readable.push(buffer);
+					readable.push(null);
+					const result = await uploadStream(readable, { folder: "elysium-tours/avatars" });
+					avatarUrl = result.secure_url;
+				}
+
+				const updated = await ctx.call("user.model.updateDirect", {
 					id: ctx.meta.user.id,
-					avatar: ctx.params.avatarUrl || null,
+					update: { avatar: avatarUrl || null },
 				});
-				return { avatar: updated.avatar };
+				return { avatar: updated?.avatar ?? null };
 			},
 		},
 
