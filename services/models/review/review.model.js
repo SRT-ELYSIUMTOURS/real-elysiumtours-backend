@@ -8,7 +8,14 @@ const ReviewSchema = new mongoose.Schema(
 		tourPackageId: {
 			type: mongoose.Schema.Types.ObjectId,
 			ref: "TourPackage",
-			required: true,
+		},
+		partnerId: {
+			type: mongoose.Schema.Types.ObjectId,
+			index: true,
+		},
+		partnerCategory: {
+			type: String,
+			trim: true,
 		},
 		customerId: {
 			type: mongoose.Schema.Types.ObjectId,
@@ -77,6 +84,8 @@ module.exports = {
 		fields: [
 			"_id",
 			"tourPackageId",
+			"partnerId",
+			"partnerCategory",
 			"customerId",
 			"organizationId",
 			"bookingId",
@@ -91,7 +100,9 @@ module.exports = {
 			"updatedAt",
 		],
 		entityValidator: {
-			tourPackageId: "string",
+			tourPackageId: "string|optional",
+			partnerId: "string|optional",
+			partnerCategory: "string|optional",
 			customerId: "string",
 			organizationId: "string|optional",
 			bookingId: "string|optional",

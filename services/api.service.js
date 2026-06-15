@@ -1037,6 +1037,7 @@ module.exports = {
 				aliases: {
 					"GET /tour/:tourPackageId": "review.listByTour",
 					"GET /stats/:tourPackageId": "review.getStats",
+					"GET /partner/:partnerId": "review.listByPartner",
 				},
 			},
 

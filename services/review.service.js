@@ -116,13 +116,49 @@ module.exports = {
 		},
 
 		/**
+		 * List published reviews for a partner (hotel, transport, etc.).
+		 * Public endpoint — no auth required.
+		 */
+		listByPartner: {
+			auth: undefined,
+			params: {
+				partnerId: "string",
+				page: { type: "number", integer: true, positive: true, optional: true, convert: true },
+				pageSize: { type: "number", integer: true, positive: true, optional: true, convert: true },
+			},
+			async handler(ctx) {
+				const { partnerId } = ctx.params;
+				const page = ctx.params.page || 1;
+				const pageSize = Math.min(ctx.params.pageSize || 10, 50);
+
+				const query = { partnerId, isPublished: true };
+
+				const [reviews, total] = await Promise.all([
+					ctx.call("review.model.find", {
+						query,
+						sort: "-createdAt",
+						limit: pageSize,
+						offset: (page - 1) * pageSize,
+						populate: ["customerId"],
+					}),
+					ctx.call("review.model.count", { query }),
+				]);
+
+				return { reviews, total, page, pageSize };
+			},
+		},
+
+		/**
 		 * Create a new review.
 		 * Requires authentication.
+		 * Accepts either tourPackageId (tour review) or partnerId+partnerCategory (partner review).
 		 */
 		create: {
 			auth: "required",
 			params: {
-				tourPackageId: "string",
+				tourPackageId: { type: "string", optional: true },
+				partnerId: { type: "string", optional: true },
+				partnerCategory: { type: "string", optional: true },
 				bookingId: { type: "string", optional: true },
 				rating: { type: "number", min: 1, max: 5 },
 				title: { type: "string", optional: true },
@@ -130,53 +166,61 @@ module.exports = {
 				images: { type: "array", optional: true },
 			},
 			async handler(ctx) {
-				const { tourPackageId, bookingId, rating, title, comment, images } = ctx.params;
+				const { tourPackageId, partnerId, partnerCategory, bookingId, rating, title, comment, images } = ctx.params;
 				const customerId = ctx.meta.user.id;
 
-				// Validate tour package exists
-				const tourPackage = await ctx.call("tourPackage.model.get", { id: tourPackageId }).catch(() => null);
-				if (!tourPackage) {
+				if (!tourPackageId && !partnerId) {
 					throw new MoleculerClientError(
-						"Tour package not found.",
-						404,
-						ERROR_CODES.PACKAGE_NOT_FOUND
+						"Either tourPackageId or partnerId is required.",
+						422,
+						ERROR_CODES.VALIDATION_ERROR
 					);
 				}
 
 				let isVerified = false;
 
-				// If bookingId provided, validate it belongs to user and is completed
-				if (bookingId) {
-					const booking = await ctx.call("booking.model.get", { id: bookingId }).catch(() => null);
-					if (!booking) {
+				if (tourPackageId) {
+					// Validate tour package exists
+					const tourPackage = await ctx.call("tourPackage.model.get", { id: tourPackageId }).catch(() => null);
+					if (!tourPackage) {
 						throw new MoleculerClientError(
-							"Booking not found.",
+							"Tour package not found.",
 							404,
-							ERROR_CODES.BOOKING_NOT_FOUND
+							ERROR_CODES.PACKAGE_NOT_FOUND
 						);
 					}
 
-					const bookingCustomerId = booking.customerId && booking.customerId.toString
-						? booking.customerId.toString()
-						: booking.customerId;
+					// If bookingId provided, validate it belongs to user and is completed
+					if (bookingId) {
+						const booking = await ctx.call("booking.model.get", { id: bookingId }).catch(() => null);
+						if (!booking) {
+							throw new MoleculerClientError(
+								"Booking not found.",
+								404,
+								ERROR_CODES.BOOKING_NOT_FOUND
+							);
+						}
 
-					if (bookingCustomerId !== customerId) {
-						throw new MoleculerClientError(
-							"This booking does not belong to you.",
-							403,
-							ERROR_CODES.REVIEW_ACCESS_DENIED
-						);
-					}
+						const bookingCustomerId = booking.customerId && booking.customerId.toString
+							? booking.customerId.toString()
+							: booking.customerId;
 
-					if (booking.status === BOOKING_STATUSES.TOUR_COMPLETED) {
-						isVerified = true;
+						if (bookingCustomerId !== customerId) {
+							throw new MoleculerClientError(
+								"This booking does not belong to you.",
+								403,
+								ERROR_CODES.REVIEW_ACCESS_DENIED
+							);
+						}
+
+						if (booking.status === BOOKING_STATUSES.TOUR_COMPLETED) {
+							isVerified = true;
+						}
 					}
 				}
 
 				const reviewData = {
-					tourPackageId,
 					customerId,
-					bookingId: bookingId || undefined,
 					rating,
 					title: title || undefined,
 					comment,
@@ -185,7 +229,11 @@ module.exports = {
 					isPublished: true,
 				};
 
-				// Add organizationId if available
+				if (tourPackageId) reviewData.tourPackageId = tourPackageId;
+				if (partnerId) reviewData.partnerId = partnerId;
+				if (partnerCategory) reviewData.partnerCategory = partnerCategory;
+				if (bookingId && tourPackageId) reviewData.bookingId = bookingId;
+
 				if (ctx.meta.user.organizationId) {
 					reviewData.organizationId = ctx.meta.user.organizationId;
 				}
@@ -194,7 +242,8 @@ module.exports = {
 
 				ctx.emit("review.created", {
 					reviewId: review._id.toString(),
-					tourPackageId,
+					tourPackageId: tourPackageId || null,
+					partnerId: partnerId || null,
 					customerId,
 					rating,
 				});
@@ -497,17 +546,23 @@ module.exports = {
 	events: {
 		"review.created": {
 			async handler(ctx) {
-				await this.recalculateRating(ctx.params.tourPackageId);
+				if (ctx.params.tourPackageId) {
+					await this.recalculateRating(ctx.params.tourPackageId);
+				}
 			},
 		},
 		"review.updated": {
 			async handler(ctx) {
-				await this.recalculateRating(ctx.params.tourPackageId);
+				if (ctx.params.tourPackageId) {
+					await this.recalculateRating(ctx.params.tourPackageId);
+				}
 			},
 		},
 		"review.deleted": {
 			async handler(ctx) {
-				await this.recalculateRating(ctx.params.tourPackageId);
+				if (ctx.params.tourPackageId) {
+					await this.recalculateRating(ctx.params.tourPackageId);
+				}
 			},
 		},
 	},
