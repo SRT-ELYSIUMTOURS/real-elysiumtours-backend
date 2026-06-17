@@ -1165,6 +1165,26 @@ module.exports = {
 					"GET /transactions/:id": "payment.getPayment",
 				},
 			},
+
+			// ─── Sitemap (public, non-versioned — must live at /sitemap.xml for SEO) ───
+			{
+				path: "/sitemap.xml",
+				authorization: false,
+				authentication: false,
+				aliases: {
+					"GET /": async function sitemapHandler(req, res) {
+						try {
+							const xml = await this.broker.call("sitemap.generate");
+							res.writeHead(200, { "Content-Type": "text/xml; charset=utf-8" });
+							res.end(xml);
+						} catch (err) {
+							this.logger.error("Sitemap generation failed", err);
+							res.writeHead(500, { "Content-Type": "text/plain" });
+							res.end("Sitemap temporarily unavailable");
+						}
+					},
+				},
+			},
 		],
 
 		// Global error handler
