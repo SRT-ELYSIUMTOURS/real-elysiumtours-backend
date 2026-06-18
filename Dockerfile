@@ -10,7 +10,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Install dependencies for Alloy (curl for health checks, ca-certificates for TLS)
-RUN apk add --no-cache curl ca-certificates unzip
+RUN apk add --no-cache curl ca-certificates unzip libc6-compat
 
 # Download Grafana Alloy binary (v1.8.3 — stable release for Alpine/amd64)
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
