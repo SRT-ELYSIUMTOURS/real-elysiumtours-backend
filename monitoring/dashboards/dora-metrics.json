@@ -1,0 +1,154 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_GRAFANA_CLOUD_PROMETHEUS",
+      "label": "Grafana Cloud Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Elysium Tours — DORA Metrics",
+  "uid": "elysium-dora",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Deployment Frequency (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["sum"] } },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 3 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(elysium_deploy_success_total{app=\"elysium-tours\"}[7d])",
+          "legendFormat": "Successful Deploys"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Change Failure Rate (%)",
+      "type": "gauge",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 15 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(elysium_deploy_failed_total{app=\"elysium-tours\"}[7d]) / increase(elysium_deployments_total{app=\"elysium-tours\"}[7d]) * 100",
+          "legendFormat": "Failure Rate"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Avg Lead Time (seconds)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["mean"] } },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "elysium_lead_time_seconds{app=\"elysium-tours\"}",
+          "legendFormat": "Lead Time"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Avg Pipeline Duration (seconds)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["mean"] } },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "elysium_pipeline_duration_seconds{app=\"elysium-tours\"}",
+          "legendFormat": "Pipeline Duration"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Daily Deploy History",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "increase(elysium_deployments_total{app=\"elysium-tours\"}[1d])",
+          "legendFormat": "Total"
+        },
+        {
+          "expr": "increase(elysium_deploy_success_total{app=\"elysium-tours\"}[1d])",
+          "legendFormat": "Success"
+        },
+        {
+          "expr": "increase(elysium_deploy_failed_total{app=\"elysium-tours\"}[1d])",
+          "legendFormat": "Failed"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Lead Time Trend",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "elysium_lead_time_seconds{app=\"elysium-tours\"}",
+          "legendFormat": "Lead Time"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Pipeline Duration Trend",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_GRAFANA_CLOUD_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "elysium_pipeline_duration_seconds{app=\"elysium-tours\"}",
+          "legendFormat": "Pipeline Duration"
+        }
+      ]
+    }
+  ]
+}
