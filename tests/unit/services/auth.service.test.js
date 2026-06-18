@@ -79,6 +79,17 @@ function createBroker() {
 		},
 	});
 
+	// Mock session.model — auth service lists it as a dependency
+	broker.createService({
+		name: "session.model",
+		actions: {
+			create: { handler() { return modelCallResults["session.model.create"] || { _id: "sess123" }; } },
+			updateDirect: { handler() { return {}; } },
+			find: { handler() { return []; } },
+			remove: { handler() { return {}; } },
+		},
+	});
+
 	// Load auth service
 	const authSvc = broker.createService(AuthService);
 

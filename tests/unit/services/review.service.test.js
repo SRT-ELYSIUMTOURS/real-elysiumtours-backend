@@ -206,6 +206,7 @@ describe("review.service", () => {
 			modelCallResults["review.model.get"] = () => ({
 				_id: "rev1",
 				customerId: "user1",
+				tourPackageId: "pkg1",
 				rating: 4,
 				comment: "Good",
 			});
@@ -249,6 +250,7 @@ describe("review.service", () => {
 			modelCallResults["review.model.get"] = () => ({
 				_id: "rev1",
 				customerId: "user1",
+				tourPackageId: "pkg1",
 			});
 			modelCallResults["review.model.remove"] = () => ({ _id: "rev1" });
 
@@ -265,6 +267,7 @@ describe("review.service", () => {
 			modelCallResults["review.model.get"] = () => ({
 				_id: "rev1",
 				customerId: "user2",
+				tourPackageId: "pkg1",
 			});
 			modelCallResults["review.model.remove"] = () => ({ _id: "rev1" });
 

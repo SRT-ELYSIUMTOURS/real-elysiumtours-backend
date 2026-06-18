@@ -102,7 +102,10 @@ describe("Media Service", () => {
 		});
 
 		it("should throw UPLOAD_FAILED when uploadStream rejects", async () => {
-			cloudinaryUtils.uploadStream.mockRejectedValueOnce(new Error("Cloud error"));
+			// Service retries with resourceType "auto" on first failure — reject both attempts
+			cloudinaryUtils.uploadStream
+				.mockRejectedValueOnce(new Error("Cloud error"))
+				.mockRejectedValueOnce(new Error("Cloud error"));
 
 			const stream = createMockStream();
 
