@@ -1,0 +1,172 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  IMAGE_NAME: kuandor/elysium-tours-backend
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        env:
+          TEST_MONGO_URI: mongodb://localhost:27017/elysium_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-for-ci-only
+          NODE_ENV: test
+        run: npm run test:integration
+
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    outputs:
+      image_tag: ${{ steps.meta.outputs.sha_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "sha_tag=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    outputs:
+      deploy_status: ${{ steps.deploy_step.outcome }}
+    steps:
+      - name: Trigger Render Deploy Hook
+        id: deploy_step
+        run: |
+          curl -sf -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deploy hook triggered successfully"
+
+  dora-metrics:
+    name: Push DORA Metrics
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute pipeline start time
+        id: timing
+        run: |
+          # Pipeline start = time of the oldest commit in this push
+          FIRST_COMMIT_EPOCH=$(git log --reverse --format="%ct" origin/master..HEAD | head -1)
+          # Fallback: use current commit time if no new commits found
+          if [ -z "$FIRST_COMMIT_EPOCH" ]; then
+            FIRST_COMMIT_EPOCH=$(git log -1 --format="%ct")
+          fi
+          echo "first_commit_epoch=$FIRST_COMMIT_EPOCH" >> $GITHUB_OUTPUT
+          # Pipeline start approximated as 60s before now (workflow overhead)
+          echo "pipeline_start_epoch=$(($(date +%s) - 120))" >> $GITHUB_OUTPUT
+
+      - name: Push DORA metrics to Grafana Cloud
+        env:
+          GRAFANA_CLOUD_PROMETHEUS_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}
+          GRAFANA_CLOUD_USER: ${{ secrets.GRAFANA_CLOUD_USER }}
+          GRAFANA_CLOUD_API_KEY: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
+          DEPLOY_STATUS: ${{ needs.deploy.result == 'success' && 'success' || 'failure' }}
+          PIPELINE_START_EPOCH: ${{ steps.timing.outputs.pipeline_start_epoch }}
+          GIT_FIRST_COMMIT_EPOCH: ${{ steps.timing.outputs.first_commit_epoch }}
+        run: |
+          chmod +x scripts/push-dora-metrics.sh
+          ./scripts/push-dora-metrics.sh
