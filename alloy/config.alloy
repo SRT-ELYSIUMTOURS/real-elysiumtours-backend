@@ -1,0 +1,31 @@
+// Scrape MoleculerJS Prometheus metrics exposed by moleculer.config.js
+prometheus.scrape "moleculer" {
+  targets = [
+    { __address__ = "localhost:3030" },
+  ]
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// Push metrics to Grafana Cloud hosted Prometheus
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      username = env("GRAFANA_CLOUD_USER")
+      password = env("GRAFANA_CLOUD_API_KEY")
+    }
+
+    queue_config {
+      max_samples_per_send = 1000
+      batch_send_deadline  = "5s"
+    }
+  }
+
+  external_labels = {
+    app     = "elysium-tours",
+    env     = "production",
+  }
+}
