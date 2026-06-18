@@ -150,7 +150,7 @@ jobs:
         id: timing
         run: |
           # Pipeline start = time of the oldest commit in this push
-          FIRST_COMMIT_EPOCH=$(git log --reverse --format="%ct" origin/master..HEAD | head -1)
+          FIRST_COMMIT_EPOCH=$(git log --reverse --format="%ct" origin/master..HEAD 2>/dev/null | head -1)
           # Fallback: use current commit time if no new commits found
           if [ -z "$FIRST_COMMIT_EPOCH" ]; then
             FIRST_COMMIT_EPOCH=$(git log -1 --format="%ct")

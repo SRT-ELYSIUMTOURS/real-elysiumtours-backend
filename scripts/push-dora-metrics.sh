@@ -45,16 +45,15 @@ elysium_pipeline_duration_seconds{app="elysium-tours",env="production"} ${PIPELI
 EOF
 )
 
-# Derive the Mimir import endpoint from the remote_write URL
-# remote_write URL format: https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push
-# import endpoint:         https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push
-# They share the same base URL — we POST Prometheus text format directly.
+# Derive Mimir plain-text import endpoint from the remote_write push URL
+# remote_write: .../api/prom/push  →  import: .../api/v1/import/prometheus
+IMPORT_URL=$(echo "$GRAFANA_CLOUD_PROMETHEUS_URL" | sed 's|/api/prom/push.*|/api/v1/import/prometheus|')
 
-echo "[dora] Pushing DORA metrics to Grafana Cloud..."
+echo "[dora] Pushing DORA metrics to Grafana Cloud (${IMPORT_URL})..."
 echo "$METRICS" | curl -sf \
   --user "${GRAFANA_CLOUD_USER}:${GRAFANA_CLOUD_API_KEY}" \
   --header "Content-Type: text/plain" \
   --data-binary @- \
-  "${GRAFANA_CLOUD_PROMETHEUS_URL}"
+  "${IMPORT_URL}"
 
 echo "[dora] Done. deploy_status=${DEPLOY_STATUS} lead_time=${LEAD_TIME}s pipeline=${PIPELINE_DURATION}s"
