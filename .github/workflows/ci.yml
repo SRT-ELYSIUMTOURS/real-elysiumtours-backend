@@ -161,7 +161,7 @@ jobs:
 
       - name: Push DORA metrics to Grafana Cloud
         env:
-          GRAFANA_CLOUD_PROMETHEUS_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}
+          GRAFANA_CLOUD_LOKI_URL: ${{ secrets.GRAFANA_CLOUD_LOKI_URL }}
           GRAFANA_CLOUD_USER: ${{ secrets.GRAFANA_CLOUD_USER }}
           GRAFANA_CLOUD_API_KEY: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
           DEPLOY_STATUS: ${{ needs.deploy.result == 'success' && 'success' || 'failure' }}
