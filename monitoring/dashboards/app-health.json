@@ -68,7 +68,7 @@
       "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(moleculer_request_duration_ms_bucket{app=\"elysium-tours\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(moleculer_request_time_bucket{app=\"elysium-tours\"}[5m]))",
           "legendFormat": "P95 latency"
         }
       ]
