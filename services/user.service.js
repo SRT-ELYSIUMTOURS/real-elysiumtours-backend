@@ -146,7 +146,7 @@ module.exports = {
 				if (ctx.params.imageBase64) {
 					// Decode base64 data URI → Buffer → stream → Cloudinary
 					// uploadFromUrl(dataURI) can hang in SDK v2; uploadStream is reliable.
-					const matches = ctx.params.imageBase64.match(/^data:([A-Za-z0-9+/\-]+);base64,(.+)$/s);
+					const matches = ctx.params.imageBase64.match(/^data:([A-Za-z0-9+/-]+);base64,(.+)$/s);
 					if (!matches) {
 						throw new MoleculerClientError("Invalid image format.", 400, ERROR_CODES.VALIDATION_ERROR);
 					}

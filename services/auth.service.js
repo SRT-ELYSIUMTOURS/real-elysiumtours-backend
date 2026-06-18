@@ -813,7 +813,7 @@ module.exports = {
 						isActive: true,
 					});
 					sessionId = session._id.toString();
-				} catch {}
+				} catch (_) { /* session creation is best-effort */ }
 
 				const accessToken = this.generateAccessToken(user, sessionId);
 				const refreshToken = this.generateRefreshToken(user);

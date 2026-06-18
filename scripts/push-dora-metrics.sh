@@ -1,5 +1,5 @@
 #!/bin/sh
-# Push DORA metrics to Grafana Cloud using Prometheus remote_write HTTP API.
+# Push DORA metrics to Grafana Cloud using Mimir plain-text import endpoint.
 # Called at the end of every CI pipeline run regardless of outcome.
 set -e
 
@@ -7,6 +7,12 @@ DEPLOY_STATUS="${DEPLOY_STATUS:-failure}"
 PIPELINE_START="${PIPELINE_START_EPOCH:-0}"
 GIT_FIRST_COMMIT="${GIT_FIRST_COMMIT_EPOCH:-0}"
 NOW=$(date +%s)
+
+# Skip gracefully if Grafana Cloud credentials are not configured
+if [ -z "$GRAFANA_CLOUD_PROMETHEUS_URL" ] || [ -z "$GRAFANA_CLOUD_USER" ] || [ -z "$GRAFANA_CLOUD_API_KEY" ]; then
+  echo "[dora] Grafana Cloud credentials not configured — skipping DORA metric push."
+  exit 0
+fi
 
 # Compute durations
 PIPELINE_DURATION=$((NOW - PIPELINE_START))
@@ -23,9 +29,6 @@ else
   DEPLOY_FAILED=1
 fi
 
-# Grafana Cloud remote_write expects snappy-compressed protobuf.
-# We use the simpler /api/v1/import/prometheus text endpoint instead
-# (supported by Grafana Cloud Mimir under the same credentials).
 METRICS=$(cat <<EOF
 # HELP elysium_deployments_total Total pipeline runs
 # TYPE elysium_deployments_total counter
@@ -46,14 +49,20 @@ EOF
 )
 
 # Derive Mimir plain-text import endpoint from the remote_write push URL
-# remote_write: .../api/prom/push  →  import: .../api/v1/import/prometheus
+# Example: https://prometheus-prod-XX.grafana.net/api/prom/push
+#      ->  https://prometheus-prod-XX.grafana.net/api/v1/import/prometheus
 IMPORT_URL=$(echo "$GRAFANA_CLOUD_PROMETHEUS_URL" | sed 's|/api/prom/push.*|/api/v1/import/prometheus|')
 
 echo "[dora] Pushing DORA metrics to Grafana Cloud (${IMPORT_URL})..."
-echo "$METRICS" | curl -sf \
+HTTP_STATUS=$(echo "$METRICS" | curl -s -o /dev/null -w "%{http_code}" \
   --user "${GRAFANA_CLOUD_USER}:${GRAFANA_CLOUD_API_KEY}" \
   --header "Content-Type: text/plain" \
   --data-binary @- \
-  "${IMPORT_URL}"
+  "${IMPORT_URL}")
 
-echo "[dora] Done. deploy_status=${DEPLOY_STATUS} lead_time=${LEAD_TIME}s pipeline=${PIPELINE_DURATION}s"
+if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "204" ] || [ "$HTTP_STATUS" = "202" ]; then
+  echo "[dora] Done. deploy_status=${DEPLOY_STATUS} lead_time=${LEAD_TIME}s pipeline=${PIPELINE_DURATION}s (HTTP ${HTTP_STATUS})"
+else
+  echo "[dora] Warning: Grafana Cloud returned HTTP ${HTTP_STATUS}. Metrics may not have been recorded."
+  echo "[dora] Check that GRAFANA_CLOUD_PROMETHEUS_URL, GRAFANA_CLOUD_USER, and GRAFANA_CLOUD_API_KEY are correct."
+fi
