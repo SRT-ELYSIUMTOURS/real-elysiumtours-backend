@@ -9,7 +9,7 @@ GIT_FIRST_COMMIT="${GIT_FIRST_COMMIT_EPOCH:-0}"
 NOW=$(date +%s)
 
 # Skip gracefully if Grafana Cloud credentials are not configured
-if [ -z "$GRAFANA_CLOUD_LOKI_URL" ] || [ -z "$GRAFANA_CLOUD_USER" ] || [ -z "$GRAFANA_CLOUD_API_KEY" ]; then
+if [ -z "$GRAFANA_CLOUD_LOKI_URL" ] || [ -z "$GRAFANA_CLOUD_LOKI_USER" ] || [ -z "$GRAFANA_CLOUD_API_KEY" ]; then
   echo "[dora] Grafana Cloud credentials not configured — skipping DORA metric push."
   exit 0
 fi
@@ -48,7 +48,7 @@ LOKI_PUSH_URL="${GRAFANA_CLOUD_LOKI_URL}/loki/api/v1/push"
 
 echo "[dora] Pushing DORA event to Grafana Cloud Loki (${LOKI_PUSH_URL})..."
 HTTP_STATUS=$(echo "$PAYLOAD" | curl -s -o /dev/null -w "%{http_code}" \
-  --user "${GRAFANA_CLOUD_USER}:${GRAFANA_CLOUD_API_KEY}" \
+  --user "${GRAFANA_CLOUD_LOKI_USER}:${GRAFANA_CLOUD_API_KEY}" \
   --header "Content-Type: application/json" \
   --data-binary @- \
   "${LOKI_PUSH_URL}")
