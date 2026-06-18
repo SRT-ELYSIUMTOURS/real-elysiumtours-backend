@@ -1,0 +1,3 @@
+# Enforce LF line endings for shell scripts (prevents Alpine sh failures on Windows checkouts)
+docker-entrypoint.sh text eol=lf
+scripts/*.sh text eol=lf
