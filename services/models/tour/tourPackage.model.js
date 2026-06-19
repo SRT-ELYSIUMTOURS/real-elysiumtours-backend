@@ -189,6 +189,10 @@ const TourPackageSchema = new mongoose.Schema(
 			type: [String],
 			default: [],
 		},
+		packingList: {
+			type: [new mongoose.Schema({ text: { type: String } }, { _id: false })],
+			default: [],
+		},
 		itinerary: [
 			{
 				day: { type: Number },
@@ -339,6 +343,7 @@ module.exports = {
 			"tourHighlights",
 			"inclusions",
 			"exclusions",
+			"packingList",
 			"itinerary",
 			"importantInformation",
 			"bookingAddOns",
@@ -404,6 +409,7 @@ module.exports = {
 				// each highlight: { title, description, image, tags, gallerySections }
 			inclusions: "array|optional",
 			exclusions: "array|optional",
+			packingList: "array|optional",
 			itinerary: "array|optional",
 			importantInformation: "object|optional",
 			bookingAddOns: "array|optional",

@@ -16,7 +16,7 @@ const DEFAULT_COMMITMENT_FEE_PERCENT = parseInt(process.env.DEFAULT_COMMITMENT_F
 module.exports = {
 	name: "booking",
 
-	dependencies: ["booking.model", "tourPackage.model", "quote.model", "tourRequest.model", "hotelPartner.model"],
+	dependencies: ["booking.model", "tourPackage.model", "tourGuide.model", "quote.model", "tourRequest.model", "hotelPartner.model"],
 
 	mixins: [BookingStatusMixin],
 
@@ -1431,7 +1431,42 @@ module.exports = {
 				{ meta: ctx.meta }
 			).catch(() => null);
 			if (!pkg) return booking;
-			return { ...booking, packageId: { _id: pkg._id, title: pkg.title, slug: pkg.slug, coverImage: pkg.coverImage } };
+
+			let guide = null;
+			if (pkg.guideId) {
+				const guideId = pkg.guideId._id ? pkg.guideId._id.toString() : pkg.guideId.toString();
+				const g = await ctx.call("tourGuide.model.get", { id: guideId }, { meta: ctx.meta }).catch(() => null);
+				if (g) {
+					guide = {
+						_id: g._id,
+						name: g.name,
+						title: g.title,
+						yearsExperience: g.yearsExperience,
+						bio: g.bio,
+						languages: g.languages || [],
+						specialities: g.specialities || [],
+						avatar: g.avatar,
+					};
+				}
+			}
+
+			return {
+				...booking,
+				packageId: {
+					_id: pkg._id,
+					title: pkg.title,
+					slug: pkg.slug,
+					coverImage: pkg.coverImage,
+					country: pkg.country,
+					inclusions: pkg.inclusions || [],
+					exclusions: pkg.exclusions || [],
+					durationDays: pkg.durationDays,
+					pickupIncluded: pkg.pickupIncluded,
+					pickupLocation: pkg.pickupLocation,
+					packingList: pkg.packingList || [],
+					guide,
+				},
+			};
 		},
 
 		async populateBookingsPackages(ctx, bookings) {
@@ -1447,11 +1482,56 @@ module.exports = {
 				{ query: { _id: { $in: packageIds } }, limit: packageIds.length },
 				{ meta: ctx.meta }
 			).catch(() => []);
+
+			// Batch-fetch guides for all packages that have one
+			const guideIds = [...new Set(
+				packages.filter(p => p.guideId).map(p =>
+					p.guideId._id ? p.guideId._id.toString() : p.guideId.toString()
+				)
+			)];
+			const guideMap = {};
+			if (guideIds.length > 0) {
+				const guides = await ctx.call(
+					"tourGuide.model.find",
+					{ query: { _id: { $in: guideIds } }, limit: guideIds.length },
+					{ meta: ctx.meta }
+				).catch(() => []);
+				for (const g of guides) {
+					const id = g._id?.toString ? g._id.toString() : g._id;
+					guideMap[id] = {
+						_id: g._id,
+						name: g.name,
+						title: g.title,
+						yearsExperience: g.yearsExperience,
+						bio: g.bio,
+						languages: g.languages || [],
+						specialities: g.specialities || [],
+						avatar: g.avatar,
+					};
+				}
+			}
+
 			const pkgMap = {};
 			for (const pkg of packages) {
 				const id = pkg._id?.toString ? pkg._id.toString() : pkg._id;
 				if (packageIds.includes(id)) {
-					pkgMap[id] = { _id: pkg._id, title: pkg.title, slug: pkg.slug, coverImage: pkg.coverImage };
+					const guideId = pkg.guideId
+						? (pkg.guideId._id ? pkg.guideId._id.toString() : pkg.guideId.toString())
+						: null;
+					pkgMap[id] = {
+						_id: pkg._id,
+						title: pkg.title,
+						slug: pkg.slug,
+						coverImage: pkg.coverImage,
+						country: pkg.country,
+						inclusions: pkg.inclusions || [],
+						exclusions: pkg.exclusions || [],
+						durationDays: pkg.durationDays,
+						pickupIncluded: pkg.pickupIncluded,
+						pickupLocation: pkg.pickupLocation,
+						packingList: pkg.packingList || [],
+						guide: guideId && guideMap[guideId] ? guideMap[guideId] : null,
+					};
 				}
 			}
 			return bookings.map(b => {

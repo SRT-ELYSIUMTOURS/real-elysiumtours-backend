@@ -289,7 +289,7 @@ For v2 (multi-tenant), swap `/api/v1` for `/api/v2` and include the `X-Tenant-Sl
 
 ## 11. Environment Notes
 
-- Paystack callback URL is set server-side via `PAYSTACK_CALLBACK_URL`. Default dev value is `http://localhost:3000/payment/callback`. If your dev port differs, ask backend to override it.
+- Paystack callback URL is set server-side via `PAYSTACK_CALLBACK_URL`. Default dev value is `http://localhost:5173/payment/callback`. If your dev port differs, ask backend to override it.
 - The frontend never needs the Paystack secret key. The public key (`PAYSTACK_PUBLIC_KEY`) is only needed if you want to use Paystack Inline (we don't — we're using the hosted/redirect flow).
 
 ---

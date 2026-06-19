@@ -16,7 +16,7 @@ const PaystackMixin = require("../mixins/payment/paystack.mixin");
 module.exports = {
 	name: "payment",
 
-	dependencies: ["payment.model", "booking.model", "paymentPlan.model"],
+	dependencies: ["payment.model", "booking.model", "paymentPlan.model", "tourPackage.model", "tourGuide.model"],
 
 	mixins: [PaystackMixin],
 
@@ -275,7 +275,7 @@ module.exports = {
 						{ meta: ctx.meta }
 					).catch(() => null);
 
-					return { payment, booking };
+					return { payment, booking: await this._populateBookingPackage(ctx, booking) };
 				}
 
 				// Verify with Paystack
@@ -349,7 +349,7 @@ module.exports = {
 						{ meta: ctx.meta }
 					).catch(() => payment);
 
-					return { payment: updatedPayment, booking: updatedBooking };
+					return { payment: updatedPayment, booking: await this._populateBookingPackage(ctx, updatedBooking) };
 				}
 
 				// Payment failed
@@ -1067,6 +1067,54 @@ module.exports = {
 					onTimePaymentRate,
 				};
 			},
+		},
+	},
+
+	methods: {
+		async _populateBookingPackage(ctx, booking) {
+			if (!booking || !booking.packageId) return booking;
+			try {
+				const pkgId = booking.packageId.toString ? booking.packageId.toString() : String(booking.packageId);
+				const pkg = await ctx.call("tourPackage.model.get", { id: pkgId }, { meta: ctx.meta }).catch(() => null);
+				if (!pkg) return booking;
+
+				let guide = null;
+				if (pkg.guideId) {
+					const guideId = pkg.guideId._id ? pkg.guideId._id.toString() : pkg.guideId.toString();
+					const g = await ctx.call("tourGuide.model.get", { id: guideId }, { meta: ctx.meta }).catch(() => null);
+					if (g) {
+						guide = {
+							_id: g._id,
+							name: g.name,
+							title: g.title,
+							yearsExperience: g.yearsExperience,
+							bio: g.bio,
+							languages: g.languages || [],
+							specialities: g.specialities || [],
+							avatar: g.avatar,
+						};
+					}
+				}
+
+				const raw = booking.toObject ? booking.toObject() : { ...booking };
+				raw.packageId = {
+					_id: pkg._id,
+					title: pkg.title,
+					slug: pkg.slug,
+					country: pkg.country,
+					coverImage: pkg.coverImage,
+					inclusions: pkg.inclusions || [],
+					exclusions: pkg.exclusions || [],
+					durationDays: pkg.durationDays,
+					pickupIncluded: pkg.pickupIncluded,
+					pickupLocation: pkg.pickupLocation,
+					packingList: pkg.packingList || [],
+					guide,
+				};
+				return raw;
+			} catch (e) {
+				return booking;
+			}
 		},
 	},
 

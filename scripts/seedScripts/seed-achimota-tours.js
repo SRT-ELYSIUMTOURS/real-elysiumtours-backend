@@ -53,8 +53,8 @@ const AccommodationOptionSchema = new mongoose.Schema(
     notes:       { type: String }, // short one-line note shown in the pricing table
     pricing:     { type: [AccommodationPricingSchema], default: [] },
     isActive:    { type: Boolean, default: true },
-  },
-  { _id: false }
+  }
+  // _id: true (default) — each option must have a stable _id for booking validation
 );
 
 const DestinationSchema = new mongoose.Schema(
@@ -667,7 +667,9 @@ async function upsertTour(TourPackage, tourData) {
   const slug = slugify(tourData.title, { lower: true, strict: true });
   const existing = await TourPackage.findOne({ slug });
   if (existing) {
-    await TourPackage.updateOne({ slug }, { $set: { ...tourData, slug } });
+    // Use doc.save() (not $set) so Mongoose generates _id for subdocuments
+    Object.assign(existing, { ...tourData, slug });
+    await existing.save();
     console.log(`  Updated: ${tourData.title}`);
   } else {
     await TourPackage.create({ ...tourData, slug });

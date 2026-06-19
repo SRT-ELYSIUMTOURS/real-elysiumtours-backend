@@ -6,6 +6,8 @@ const DbService = require("../../../mixins/db.mixin");
 const TourGuideSchema = new mongoose.Schema(
 	{
 		name: { type: String, required: true, trim: true },
+		title: { type: String, trim: true },
+		yearsExperience: { type: Number, min: 0 },
 		organizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", index: true },
 		email: { type: String, trim: true, lowercase: true },
 		phone: { type: String, trim: true },
@@ -32,12 +34,14 @@ module.exports = {
 
 	settings: {
 		fields: [
-			"_id", "name", "organizationId", "email", "phone", "specialities",
+			"_id", "name", "title", "yearsExperience", "organizationId", "email", "phone", "specialities",
 			"languages", "bio", "avatar", "galleryImages", "country", "rating", "reviewCount", "isActive",
 			"createdAt", "updatedAt",
 		],
 		entityValidator: {
 			name: "string",
+			title: "string|optional",
+			yearsExperience: "number|optional",
 			email: "string|optional",
 			phone: "string|optional",
 			specialities: "array|optional",
