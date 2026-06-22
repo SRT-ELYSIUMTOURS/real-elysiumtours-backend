@@ -166,6 +166,35 @@ function createMockTemplateModel() {
 }
 
 /**
+ * Create a mock session.model service (auth service dependency).
+ */
+function createMockSessionModel() {
+	const sessionStore = new Map();
+	return {
+		name: "session.model",
+		actions: {
+			create: {
+				handler(ctx) {
+					const id = `sess_${idCounter++}`;
+					const doc = { _id: id, ...ctx.params };
+					sessionStore.set(id, doc);
+					return doc;
+				},
+			},
+			updateDirect: {
+				handler(ctx) {
+					const sess = sessionStore.get(ctx.params.id);
+					if (sess) Object.assign(sess, ctx.params.update || {});
+					return sess || {};
+				},
+			},
+			find: { handler() { return []; } },
+			remove: { handler() { return {}; } },
+		},
+	};
+}
+
+/**
  * Create a mock email service that captures calls.
  */
 function createMockEmailService() {
@@ -224,6 +253,7 @@ describe("Auth Flow — Integration", () => {
 
 		// Load mock model services
 		broker.createService(createMockUserModel());
+		broker.createService(createMockSessionModel());
 		broker.createService(createMockTemplateModel());
 		broker.createService(createMockEmailService());
 

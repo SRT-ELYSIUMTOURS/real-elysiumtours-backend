@@ -1,0 +1,201 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_GRAFANA_CLOUD_LOKI",
+      "label": "Grafana Cloud Loki",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" }
+  ],
+  "title": "Elysium Tours — DORA Metrics",
+  "uid": "elysium-dora",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Deployment Frequency (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 5 }
+            ]
+          },
+          "unit": "short",
+          "displayName": "Deployments"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\"}[7d])",
+          "legendFormat": "Total Deployments",
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Successful Deployments (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short",
+          "displayName": "Successful"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\",deploy_status=\"success\"}[7d])",
+          "legendFormat": "Successful",
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Change Failure Rate (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 15 },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "percent",
+          "displayName": "Failure Rate"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\",deploy_status=\"failure\"}[7d]) / count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\"}[7d]) * 100",
+          "legendFormat": "Failure Rate %",
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Avg Lead Time (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3600 },
+              { "color": "red", "value": 86400 }
+            ]
+          },
+          "unit": "s",
+          "displayName": "Lead Time"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "avg_over_time({app=\"elysium-tours\",job=\"ci-pipeline\"} | json | unwrap lead_time_seconds [7d])",
+          "legendFormat": "Avg Lead Time",
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Deployments Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\",deploy_status=\"success\"}[$__interval])",
+          "legendFormat": "Success"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "count_over_time({app=\"elysium-tours\",job=\"ci-pipeline\",deploy_status=\"failure\"}[$__interval])",
+          "legendFormat": "Failure"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Pipeline Duration Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "max_over_time({app=\"elysium-tours\",job=\"ci-pipeline\"} | json | unwrap pipeline_duration_seconds [$__interval])",
+          "legendFormat": "Pipeline Duration"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Deployment Event Log",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+      "options": { "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${DS_GRAFANA_CLOUD_LOKI}" },
+          "expr": "{app=\"elysium-tours\",job=\"ci-pipeline\"}",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+groups:
+  - name: elysium-tours-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(moleculer_request_error_total{app="elysium-tours"}[5m]) / rate(moleculer_request_total{app="elysium-tours"}[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on Elysium Tours backend"
+          description: "Error rate is above 15% for 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: process_heap_bytes{app="elysium-tours"} > 500000000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High heap memory usage"
+          description: "Node.js heap is above 500MB for 10 minutes."
+
+      - alert: CircuitBreakerOpen
+        expr: increase(moleculer_circuit_breaker_opened_total{app="elysium-tours"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker opened"
+          description: "A Moleculer service circuit breaker has tripped."
+
+      - alert: HighEventLoopLag
+        expr: nodejs_event_loop_lag_seconds{app="elysium-tours"} > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Node.js event loop lag"
+          description: "Event loop lag exceeds 500ms — possible CPU starvation."
