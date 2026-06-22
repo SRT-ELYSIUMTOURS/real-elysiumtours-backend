@@ -89,28 +89,28 @@ module.exports = {
 					{ meta: ctx.meta }
 				);
 
-				// Filter by price range if provided
+				// Filter by price range if provided — batch pricing fetch upfront to avoid N+1
 				let results = packages;
-				if (minPrice !== undefined || maxPrice !== undefined) {
-					results = [];
-					for (const pkg of packages) {
-						const pricingTiers = await ctx.call(
-							"packagePricing.model.find",
-							{ query: { packageId: pkg._id.toString(), isActive: true } },
-							{ meta: ctx.meta }
-						);
-
-						if (pricingTiers.length === 0) continue;
-
-						const lowestPrice = Math.min(
-							...pricingTiers.map((t) => t.pricePerPerson)
-						);
-
-						if (minPrice !== undefined && lowestPrice < minPrice) continue;
-						if (maxPrice !== undefined && lowestPrice > maxPrice) continue;
-
-						results.push({ ...pkg, pricingTiers });
+				if ((minPrice !== undefined || maxPrice !== undefined) && packages.length > 0) {
+					const allPkgIds = packages.map((p) => p._id.toString());
+					const allTiersForFilter = await ctx.call("packagePricing.model.find", {
+						query: { packageId: { $in: allPkgIds }, isActive: true },
+					}, { meta: ctx.meta });
+					const tiersByPkgFilter = {};
+					for (const tier of allTiersForFilter) {
+						const key = tier.packageId.toString();
+						if (!tiersByPkgFilter[key]) tiersByPkgFilter[key] = [];
+						tiersByPkgFilter[key].push(tier);
 					}
+					results = packages.reduce((acc, pkg) => {
+						const tiers = tiersByPkgFilter[pkg._id.toString()] || [];
+						if (tiers.length === 0) return acc;
+						const lowestPrice = Math.min(...tiers.map((t) => t.pricePerPerson));
+						if (minPrice !== undefined && lowestPrice < minPrice) return acc;
+						if (maxPrice !== undefined && lowestPrice > maxPrice) return acc;
+						acc.push({ ...pkg, pricingTiers: tiers });
+						return acc;
+					}, []);
 				}
 
 				// Apply sorting (non-relevance modes)
@@ -123,20 +123,39 @@ module.exports = {
 				const offset = (page - 1) * pageSize;
 				const paginatedResults = results.slice(offset, offset + pageSize);
 
-				// Enrich with pricingTiers (if not already from price filter) and destination
-				const enriched = await Promise.all(
-					paginatedResults.map(async (pkg) => {
-						const [pricingTiers, destination] = await Promise.all([
-							pkg.pricingTiers
-								? Promise.resolve(pkg.pricingTiers)
-								: ctx.call("packagePricing.model.find", { query: { packageId: pkg._id.toString(), isActive: true } }, { meta: ctx.meta }),
-							pkg.destinationId
-								? ctx.call("destination.model.get", { id: pkg.destinationId.toString() }, { meta: ctx.meta }).catch(() => null)
-								: Promise.resolve(null),
-						]);
-						return { ...pkg, pricingTiers, destination };
-					})
-				);
+				// Batch enrich the page of results — 2 calls regardless of page size
+				let enriched = paginatedResults;
+				if (paginatedResults.length > 0) {
+					const needPricingIds = paginatedResults.filter((p) => !p.pricingTiers).map((p) => p._id.toString());
+					const destIds2 = [...new Set(
+						paginatedResults.filter((p) => p.destinationId).map((p) => p.destinationId.toString())
+					)];
+					const [missingTiers, pageDestinations] = await Promise.all([
+						needPricingIds.length > 0
+							? ctx.call("packagePricing.model.find", {
+								query: { packageId: { $in: needPricingIds }, isActive: true },
+							}, { meta: ctx.meta })
+							: Promise.resolve([]),
+						destIds2.length > 0
+							? ctx.call("destination.model.find", { query: { _id: { $in: destIds2 } } }, { meta: ctx.meta }).catch(() => [])
+							: Promise.resolve([]),
+					]);
+					const missingTiersByPkg = {};
+					for (const tier of missingTiers) {
+						const key = tier.packageId.toString();
+						if (!missingTiersByPkg[key]) missingTiersByPkg[key] = [];
+						missingTiersByPkg[key].push(tier);
+					}
+					const destById2 = {};
+					for (const dest of pageDestinations) {
+						destById2[dest._id.toString()] = dest;
+					}
+					enriched = paginatedResults.map((pkg) => ({
+						...pkg,
+						pricingTiers: pkg.pricingTiers || missingTiersByPkg[pkg._id.toString()] || [],
+						destination: pkg.destinationId ? (destById2[pkg.destinationId.toString()] || null) : null,
+					}));
+				}
 
 				return {
 					results: enriched,
@@ -203,22 +222,39 @@ module.exports = {
 
 				const packages = await ctx.call("tourPackage.model.find", params, { meta: ctx.meta });
 
-				// Attach pricing tiers and destination to each package
-				let results = await Promise.all(
-					packages.map(async (pkg) => {
-						const [pricingTiers, destination] = await Promise.all([
-							ctx.call(
-								"packagePricing.model.find",
-								{ query: { packageId: pkg._id.toString(), isActive: true } },
-								{ meta: ctx.meta }
-							),
-							pkg.destinationId
-								? ctx.call("destination.model.get", { id: pkg.destinationId.toString() }, { meta: ctx.meta }).catch(() => null)
-								: Promise.resolve(null),
-						]);
-						return { ...pkg, pricingTiers, destination };
-					})
-				);
+				if (packages.length === 0) return [];
+
+				// Batch enrichment: 2 calls instead of 2N (prevents timeout storm on large lists)
+				const pkgIds = packages.map((pkg) => pkg._id.toString());
+				const destIds = [...new Set(
+					packages.filter((pkg) => pkg.destinationId).map((pkg) => pkg.destinationId.toString())
+				)];
+
+				const [allTiers, allDestinations] = await Promise.all([
+					ctx.call("packagePricing.model.find", {
+						query: { packageId: { $in: pkgIds }, isActive: true },
+					}, { meta: ctx.meta }),
+					destIds.length > 0
+						? ctx.call("destination.model.find", { query: { _id: { $in: destIds } } }, { meta: ctx.meta }).catch(() => [])
+						: Promise.resolve([]),
+				]);
+
+				const tiersByPkg = {};
+				for (const tier of allTiers) {
+					const key = tier.packageId.toString();
+					if (!tiersByPkg[key]) tiersByPkg[key] = [];
+					tiersByPkg[key].push(tier);
+				}
+				const destById = {};
+				for (const dest of allDestinations) {
+					destById[dest._id.toString()] = dest;
+				}
+
+				let results = packages.map((pkg) => ({
+					...pkg,
+					pricingTiers: tiersByPkg[pkg._id.toString()] || [],
+					destination: pkg.destinationId ? (destById[pkg.destinationId.toString()] || null) : null,
+				}));
 
 				// Price range filtering (post-enrichment, prices live in pricingTiers)
 				if (minPrice !== undefined || maxPrice !== undefined) {
@@ -1324,17 +1360,22 @@ module.exports = {
 			}
 
 			if (sortBy === "price_low" || sortBy === "price_high") {
-				// Ensure each result has pricing data attached
-				const withPrices = await Promise.all(
-					results.map(async (pkg) => {
-						if (pkg.pricingTiers) return pkg;
-						const pricingTiers = await ctx.call(
-							"packagePricing.model.find",
-							{ query: { packageId: pkg._id.toString(), isActive: true } },
-							{ meta: ctx.meta }
-						);
-						return { ...pkg, pricingTiers };
-					})
+				// Batch fetch pricing only for packages that don't have it yet
+				const needIds = results.filter((p) => !p.pricingTiers).map((p) => p._id.toString());
+				let extraTiers = [];
+				if (needIds.length > 0) {
+					extraTiers = await ctx.call("packagePricing.model.find", {
+						query: { packageId: { $in: needIds }, isActive: true },
+					}, { meta: ctx.meta });
+				}
+				const extraByPkg = {};
+				for (const tier of extraTiers) {
+					const key = tier.packageId.toString();
+					if (!extraByPkg[key]) extraByPkg[key] = [];
+					extraByPkg[key].push(tier);
+				}
+				const withPrices = results.map((pkg) =>
+					pkg.pricingTiers ? pkg : { ...pkg, pricingTiers: extraByPkg[pkg._id.toString()] || [] }
 				);
 
 				return withPrices.sort((a, b) => {

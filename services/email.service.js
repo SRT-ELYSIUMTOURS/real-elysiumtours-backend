@@ -278,7 +278,7 @@ module.exports = {
 		"auth.forgotPassword"(ctx) {
 			const { email, resetToken } = ctx.params;
 
-			const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${resetToken}`;
+			const resetLink = `${process.env.FRONTEND_URL || "https://elysiumtour.com"}/reset-password?token=${resetToken}`;
 
 			this.broker
 				.call("email.sendTemplated", {

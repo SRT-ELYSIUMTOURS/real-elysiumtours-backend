@@ -1,6 +1,6 @@
 "use strict";
 
-const SITE_URL = (process.env.SITE_URL || "https://elysiumtour.com").replace(/\/$/, "");
+const SITE_URL = (process.env.FRONTEND_URL || "https://elysiumtour.com").replace(/\/$/, "");
 
 const STATIC_URLS = [
 	{ loc: "/",                                    priority: "1.0", changefreq: "daily"   },

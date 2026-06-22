@@ -7,5 +7,5 @@ module.exports = {
   baseUrl: "https://api.paystack.co",
   currency: "GHS", // Ghana Cedis
   channels: ["mobile_money", "card", "bank"],
-  callbackUrl: process.env.PAYSTACK_CALLBACK_URL || "http://localhost:5173/payment/verify",
+  callbackUrl: `${process.env.FRONTEND_URL}/payment/verify`,
 };
