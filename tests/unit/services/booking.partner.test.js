@@ -398,6 +398,15 @@ function createBookingPartnerBroker() {
 		},
 	});
 
+	// Mock tourGuide.model service (booking.service dependency)
+	broker.createService({
+		name: "tourGuide.model",
+		actions: {
+			get: { handler() { return null; } },
+			find: { handler() { return []; } },
+		},
+	});
+
 	// Load the real booking service
 	broker.createService(BookingService);
 

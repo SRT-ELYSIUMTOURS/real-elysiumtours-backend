@@ -187,6 +187,24 @@ function createBroker() {
 		},
 	});
 
+	// Mock tourPackage.model + tourGuide.model services (payment.service dependencies)
+	broker.createService({
+		name: "tourPackage.model",
+		actions: {
+			get: { handler() { return null; } },
+			find: { handler() { return []; } },
+			update: { handler() { return {}; } },
+		},
+	});
+
+	broker.createService({
+		name: "tourGuide.model",
+		actions: {
+			get: { handler() { return null; } },
+			find: { handler() { return []; } },
+		},
+	});
+
 	// Load the real payment service
 	const svc = broker.createService(PaymentService);
 

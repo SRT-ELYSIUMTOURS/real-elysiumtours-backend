@@ -43,6 +43,7 @@ function createBroker() {
 	broker.createService({ name: "quote.model", actions: { get: { handler() { return null; } } } });
 	broker.createService({ name: "tourRequest.model", actions: { get: { handler() { return null; } } } });
 	broker.createService({ name: "hotelPartner.model", actions: { get: { handler() { return null; } } } });
+	broker.createService({ name: "tourGuide.model", actions: { get: { handler() { return null; } }, find: { handler() { return []; } } } });
 
 	broker.createService(BookingService);
 	return broker;

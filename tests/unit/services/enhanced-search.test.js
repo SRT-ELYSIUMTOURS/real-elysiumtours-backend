@@ -145,13 +145,18 @@ function setupSearchMocks() {
 		{ ...mockPackageNewest },  // bookingCount: 5, price: 800, 1 day old
 	];
 
-	// packagePricing.model.find returns pricing per package
+	// packagePricing.model.find returns pricing per package.
+	// Handles both a single packageId and a batched { $in: [...] } query
+	// (applySortBy and the enrichment step fetch tiers in bulk via $in).
 	modelCallResults["packagePricing.model.find"] = (params) => {
-		const pkgId = params.query?.packageId;
-		if (pkgId === "pkg-search-1") return [...mockPricingPkg1];
-		if (pkgId === "pkg-search-2") return [...mockPricingPkg2];
-		if (pkgId === "pkg-search-3") return [...mockPricingPkg3];
-		return [];
+		const pkgIdParam = params.query?.packageId;
+		const ids = pkgIdParam && pkgIdParam.$in ? pkgIdParam.$in : [pkgIdParam];
+		const byId = {
+			"pkg-search-1": mockPricingPkg1,
+			"pkg-search-2": mockPricingPkg2,
+			"pkg-search-3": mockPricingPkg3,
+		};
+		return ids.flatMap((id) => (byId[id] ? byId[id].map((t) => ({ ...t })) : []));
 	};
 }
 

@@ -141,13 +141,13 @@ module.exports = {
 							: Promise.resolve([]),
 					]);
 					const missingTiersByPkg = {};
-					for (const tier of missingTiers) {
+					for (const tier of (Array.isArray(missingTiers) ? missingTiers : [])) {
 						const key = tier.packageId.toString();
 						if (!missingTiersByPkg[key]) missingTiersByPkg[key] = [];
 						missingTiersByPkg[key].push(tier);
 					}
 					const destById2 = {};
-					for (const dest of pageDestinations) {
+					for (const dest of (Array.isArray(pageDestinations) ? pageDestinations : [])) {
 						destById2[dest._id.toString()] = dest;
 					}
 					enriched = paginatedResults.map((pkg) => ({
@@ -1041,6 +1041,26 @@ module.exports = {
 					{ query: { packageId, isActive: true } },
 					{ meta: ctx.meta }
 				);
+
+				// ── Path 3: basePrice fallback — no PackagePricing records configured ──
+				if (pricingTiers.length === 0) {
+					if (!pkg.basePrice) {
+						throw new MoleculerClientError(
+							"This package has no pricing configured.",
+							422,
+							ERROR_CODES.VALIDATION_ERROR,
+							{ packageId }
+						);
+					}
+					return {
+						valid: true,
+						package: pkg,
+						pricingTier: null,
+						pricePerPerson: pkg.basePrice,
+						totalPrice: pkg.basePrice * groupSize,
+						currency,
+					};
+				}
 
 				const matchingTier = pricingTiers.find(
 					(tier) => groupSize >= tier.minGroupSize && groupSize <= tier.maxGroupSize
