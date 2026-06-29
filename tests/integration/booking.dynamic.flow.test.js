@@ -169,6 +169,7 @@ describe("Dynamic Booking Flow — Integration (Diagram 4)", () => {
 			"user.model",
 			"interest.model",
 			"paymentPlan.model",
+			"tourGuide.model",
 		];
 
 		for (const name of modelNames) {

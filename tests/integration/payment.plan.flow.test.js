@@ -189,6 +189,7 @@ describe("Payment Plan + Contract Flow — Integration (Phase 3)", () => {
 			"user.model",
 			"review.model",
 			"waitlistEntry.model",
+			"tourGuide.model",
 		];
 
 		for (const name of modelNames) {

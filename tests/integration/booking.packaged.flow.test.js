@@ -173,6 +173,7 @@ describe("Packaged Booking Flow — Integration (Diagram 3)", () => {
 			"paymentPlan.model",
 			"review.model",
 			"waitlistEntry.model",
+			"tourGuide.model",
 		];
 
 		for (const name of modelNames) {
