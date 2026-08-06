@@ -2,7 +2,15 @@
 
 require("dotenv").config();
 const dns = require("dns");
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+// Optional DNS override — do NOT force public resolvers in production by default.
+// On Render this adds external DNS egress and can fight the platform resolver.
+if (process.env.DNS_SERVERS) {
+	dns.setServers(
+		process.env.DNS_SERVERS.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean)
+	);
+}
 const os = require("os");
 
 const DbIdNormalizer = require("./middlewares/dbIdNormalizer.middleware");
@@ -23,6 +31,15 @@ const isProd = process.env.NODE_ENV === "production";
 const tracingEnabled = process.env.TRACING_ENABLED === "true";
 const metricsEnabled = process.env.METRICS_ENABLED === "true";
 const prometheusEnabled = process.env.METRICS_PROMETHEUS === "true";
+
+// Redis transporter is ONLY needed when services run in separate Node processes
+// (docker-compose multi-worker / multiple Render services). On a single Render
+// web service that loads all services via `npm start`, in-process calls work
+// without a transporter. Leaving REDIS_URL wired as the transporter burns
+// egress on heartbeats + large INFO packets even with zero user traffic.
+const multiNode = process.env.MULTI_NODE === "true";
+const transporter =
+	multiNode && process.env.REDIS_URL ? process.env.REDIS_URL : null;
 
 const tracingConfig = tracingEnabled
   ? {
@@ -102,7 +119,7 @@ module.exports = {
   // Metrics — Console reporter for terminal, optional Prometheus for scraping.
   metrics: metricsConfig,
 
-  transporter: process.env.REDIS_URL || null,
+  transporter,
 
   // Caching explicitly disabled during development.
   // Cache poisoning risk: stale data in request/response cycles.
@@ -123,8 +140,10 @@ module.exports = {
   },
 
   maxCallLevel: 100,
-  heartbeatInterval: 10,
-  heartbeatTimeout: 30,
+  // Heartbeats only matter with a transporter. Keep them slower in multi-node
+  // to cut Redis egress (INFO packets include full service schemas).
+  heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL, 10) || (multiNode ? 30 : 10),
+  heartbeatTimeout: parseInt(process.env.HEARTBEAT_TIMEOUT, 10) || (multiNode ? 90 : 30),
 
   contextParamsCloning: false,
 
@@ -176,6 +195,11 @@ module.exports = {
 
   created(broker) {
     broker.logger.info("Elysium Tours broker created");
+    broker.logger.info(
+      multiNode
+        ? `Transporter enabled (MULTI_NODE): ${process.env.REDIS_URL ? "Redis" : "none"}`
+        : "Transporter disabled (single-node / in-process). Set MULTI_NODE=true for multi-worker deploys."
+    );
   },
 
   started(broker) {

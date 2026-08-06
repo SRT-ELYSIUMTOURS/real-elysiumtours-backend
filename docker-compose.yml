@@ -8,6 +8,7 @@ services:
       - "${PORT:-3001}:3001"
     environment:
       - SERVICES=api
+      - MULTI_NODE=true
       - MONGO_URI=${MONGO_URI}
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
@@ -30,6 +31,7 @@ services:
     container_name: elysium-core-worker
     environment:
       - SERVICES=auth,user,rbac,tourPackage,dynamicTour,booking,payment,paymentPlan,contract,interest,sitemap
+      - MULTI_NODE=true
       - MONGO_URI=${MONGO_URI}
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
@@ -52,6 +54,7 @@ services:
     container_name: elysium-partner-worker
     environment:
       - SERVICES=hotelPartner,transport,attraction,dining,pricingDesk,destination
+      - MULTI_NODE=true
       - MONGO_URI=${MONGO_URI}
       - REDIS_URL=${REDIS_URL}
       - NODE_ENV=production
@@ -65,6 +68,7 @@ services:
     container_name: elysium-comms-worker
     environment:
       - SERVICES=email,notification,template,media
+      - MULTI_NODE=true
       - MONGO_URI=${MONGO_URI}
       - REDIS_URL=${REDIS_URL}
       - SMTP_HOST=${SMTP_HOST}

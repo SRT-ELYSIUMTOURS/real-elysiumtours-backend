@@ -14,9 +14,23 @@ module.exports = {
 		ip: "0.0.0.0",
 
 		cors: {
-			origin: process.env.CORS_ORIGIN || "*",
-			methods: (process.env.CORS_METHODS || "GET,POST,PUT,PATCH,DELETE").split(","),
+			origin: (process.env.CORS_ORIGIN || "*")
+				.split(",")
+				.map((o) => o.trim())
+				.filter(Boolean),
+			methods: (process.env.CORS_METHODS || "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS")
+				.split(",")
+				.map((m) => m.trim())
+				.filter(Boolean),
+			allowedHeaders: (
+				process.env.CORS_ALLOWED_HEADERS ||
+				"Content-Type,Authorization,X-Requested-With,Accept,Origin"
+			)
+				.split(",")
+				.map((h) => h.trim())
+				.filter(Boolean),
 			credentials: process.env.CORS_CREDENTIALS !== "false",
+			maxAge: 3600,
 		},
 
 		rateLimit: {
