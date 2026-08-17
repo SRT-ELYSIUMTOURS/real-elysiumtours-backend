@@ -1,0 +1,563 @@
+{
+  "backedUpAt": "2026-08-17T03:54:44.690Z",
+  "tourPackages": [
+    {
+      "_id": "6a136ced05aafb714ea27a4d",
+      "title": "Achimota Volta Heritage Experience",
+      "slug": "achimota-volta-heritage-experience",
+      "description": "A three-day Volta and Keta heritage experience designed around water, memory, coastline and centenary pride. Participants begin with a warm send-off, enjoy Lake Volta, visit historic landmarks and gather for a memorable resort dinner on the Keta coastline.",
+      "destinationId": "6a14bc943cc48532ec064026",
+      "country": "ghana",
+      "durationDays": 3,
+      "basePrice": 1350,
+      "displayCurrency": "USD",
+      "coverImage": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779743833/elysium-tours/achimota/volta-heritage/card.jpg",
+      "images": [
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746828/elysium-tours/achimota/volta-heritage/adomi-bridge.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746831/elysium-tours/achimota/volta-heritage/dodi-princess.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746835/elysium-tours/achimota/volta-heritage/fort-prinzenstein.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746837/elysium-tours/achimota/volta-heritage/keta-flag-planting.jpg"
+      ],
+      "heroMainImage": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779743835/elysium-tours/achimota/volta-heritage/hero1.jpg",
+      "rating": 0,
+      "reviewCount": 0,
+      "tags": [
+        "Achimota",
+        "Centenary",
+        "Lake Volta",
+        "Coastal",
+        "Heritage"
+      ],
+      "tourType": "multi_day",
+      "category": "leisure",
+      "difficulty": "easy",
+      "bestFor": [
+        "Alumni",
+        "Students",
+        "Families",
+        "Adventure seekers",
+        "Photography lovers"
+      ],
+      "languages": [
+        "English",
+        "Twi",
+        "French"
+      ],
+      "pickupIncluded": true,
+      "pickupLocation": "Achimota, Greater Accra Region",
+      "totalCapacity": 50,
+      "remainingCapacity": 50,
+      "isActive": true,
+      "status": "published",
+      "featured": true,
+      "startDate": "2027-01-26T00:00:00.000Z",
+      "endDate": "2027-01-28T00:00:00.000Z",
+      "availabilityBadge": "Limited Spots",
+      "featureType": "centenary",
+      "featureLabel": "Centenary Tour",
+      "highlights": [
+        "Complimentary Breakfast — Hebs send-off gift for every Tour 3 participant before the journey begins.",
+        "Dodi Princess Boat Ride — Five-hour Lake Volta cruise with food, drinks, music, networking and life jackets.",
+        "Adomi Bridge — Photo stop at the historic 1957 suspension bridge at Atimpoku.",
+        "Fort Prinzenstein, Keta — 1784 Danish fort and former slave trade site.",
+        "Keta Flag Planting Ceremony — Symbolic flag planting in Keta on Day 2.",
+        "Resort Dinner, Keta — Day 2 evening at Aborigines Beach Resort, informal but memorable."
+      ],
+      "tourHighlights": [
+        {
+          "title": "Adomi Bridge",
+          "description": "A crossing and photo stop at the historic 1957 suspension bridge at Atimpoku — one of Ghana's most photographed landmarks on the Volta River.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746828/elysium-tours/achimota/volta-heritage/adomi-bridge.jpg",
+          "tags": [
+            "Heritage"
+          ],
+          "gallerySections": [],
+          "_id": "6a33f1aa579e7a0121b2fb39"
+        },
+        {
+          "title": "Dodi Princess Boat Cruise",
+          "description": "A scenic 5-hour cruise on Lake Volta to Dodi Island and back. Life jackets provided. Food, drinks, and music on board. An experience unlike anything else on the tour circuit.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779746831/elysium-tours/achimota/volta-heritage/dodi-princess.jpg",
+          "tags": [
+            "Lake Volta"
+          ],
+          "gallerySections": [
+            "activities"
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb3a"
+        }
+      ],
+      "inclusions": [
+        "Daily water: 3 bottles per person per day",
+        "Hotel breakfast is complementary",
+        "Guided heritage experiences",
+        "Lunch and dinner included",
+        "Fundraising / alumni dinner access",
+        "Achimota centenary flag planting moment"
+      ],
+      "exclusions": [
+        "International / domestic flights",
+        "Travel insurance",
+        "Personal spending & tips"
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "title": "Accra Departure — Adomi Bridge — Dodi Princess Cruise",
+          "description": "Depart Achimota School 6:00 AM with complimentary breakfast provided. Cross the Adomi Bridge at Atimpoku. Board the Dodi Princess at Akosombo for a 5-hour Lake Volta cruise.",
+          "activities": [
+            {
+              "time": "06:00",
+              "activity": "Depart Achimota School — complimentary breakfast provided before boarding",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb3c"
+            },
+            {
+              "time": "09:00",
+              "activity": "Adomi Bridge, Atimpoku — crossing and photo stop",
+              "tag": "sightseeing",
+              "_id": "6a33f1aa579e7a0121b2fb3d"
+            },
+            {
+              "time": "10:30",
+              "activity": "Arrive Akosombo jetty — brief Akosombo Dam viewpoint stop",
+              "_id": "6a33f1aa579e7a0121b2fb3e"
+            },
+            {
+              "time": "11:00",
+              "activity": "Board Dodi Princess — depart for Dodi Island",
+              "tag": "cruise",
+              "_id": "6a33f1aa579e7a0121b2fb3f"
+            },
+            {
+              "time": "13:30",
+              "activity": "Land at Dodi Island — village walk and cultural exchange",
+              "_id": "6a33f1aa579e7a0121b2fb40"
+            },
+            {
+              "time": "14:30",
+              "activity": "Return cruise to Akosombo (2.5 hrs). Lunch and drinks on board",
+              "_id": "6a33f1aa579e7a0121b2fb41"
+            },
+            {
+              "time": "17:00",
+              "activity": "Arrive back at Akosombo — drive east to overnight stop",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb42"
+            },
+            {
+              "time": "19:30",
+              "activity": "Check in and dinner",
+              "_id": "6a33f1aa579e7a0121b2fb43"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb3b"
+        },
+        {
+          "day": 2,
+          "title": "Fort Prinzenstein — Keta Flag Planting — Resort Dinner",
+          "description": "Drive to Keta. Guided tour of Fort Prinzenstein. The Achimota flag is planted overlooking the Atlantic Ocean. Keta Lagoon sunset walk. Alumni resort dinner on the coastline.",
+          "activities": [
+            {
+              "time": "08:00",
+              "activity": "Drive to Keta (1.5 hrs)",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb45"
+            },
+            {
+              "time": "09:30",
+              "activity": "Fort Prinzenstein — guided tour of the 1784 Danish fort",
+              "tag": "heritage",
+              "_id": "6a33f1aa579e7a0121b2fb46"
+            },
+            {
+              "time": "11:30",
+              "activity": "Keta Flag Planting Ceremony — Achimota flag planted overlooking the Atlantic",
+              "tag": "centenary",
+              "_id": "6a33f1aa579e7a0121b2fb47"
+            },
+            {
+              "time": "13:00",
+              "activity": "Lunch at a local Keta seafood spot",
+              "_id": "6a33f1aa579e7a0121b2fb48"
+            },
+            {
+              "time": "16:00",
+              "activity": "Check in at Aborigines Beach Resort",
+              "_id": "6a33f1aa579e7a0121b2fb49"
+            },
+            {
+              "time": "17:30",
+              "activity": "Keta Lagoon Sunset Walk — ocean-lagoon peninsula at golden hour",
+              "tag": "sightseeing",
+              "_id": "6a33f1aa579e7a0121b2fb4a"
+            },
+            {
+              "time": "19:30",
+              "activity": "Resort Dinner — alumni dinner at Aborigines Beach Resort on the Keta coastline",
+              "tag": "event",
+              "_id": "6a33f1aa579e7a0121b2fb4b"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb44"
+        },
+        {
+          "day": 3,
+          "title": "Return to Accra",
+          "description": "Depart Keta after breakfast. Return to Accra via Sogakope. Tour concludes at Achimota School.",
+          "activities": [
+            {
+              "time": "08:00",
+              "activity": "Breakfast and check out",
+              "_id": "6a33f1aa579e7a0121b2fb4d"
+            },
+            {
+              "time": "09:00",
+              "activity": "Depart Keta — return to Accra via Sogakope (3 hrs)",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb4e"
+            },
+            {
+              "time": "12:30",
+              "activity": "Arrive Accra — optional Accra city stop",
+              "_id": "6a33f1aa579e7a0121b2fb4f"
+            },
+            {
+              "time": "14:00",
+              "activity": "Arrive Achimota School — Volta Heritage Experience concludes",
+              "_id": "6a33f1aa579e7a0121b2fb50"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb4c"
+        }
+      ],
+      "createdAt": "2026-05-24T21:26:05.519Z",
+      "updatedAt": "2026-08-12T04:54:00.967Z",
+      "__v": 1,
+      "viewCount": 47,
+      "accommodationOptions": [
+        {
+          "label": "Reddington Beach Resort, Keta",
+          "tier": "premium",
+          "description": "Beachfront resort on the Keta coastline — the venue for the alumni resort dinner. Rooms face the Atlantic Ocean with direct beach access. Built on the unique ocean-lagoon peninsula.",
+          "notes": "Beachfront resort on the Keta coastline",
+          "pricing": [
+            {
+              "roomType": "single",
+              "pricePerPerson": 1350
+            },
+            {
+              "roomType": "double",
+              "pricePerPerson": 2300
+            }
+          ],
+          "isActive": true,
+          "_id": "6a33f1aa579e7a0121b2fb38"
+        }
+      ],
+      "cancellable": true,
+      "cancellationPolicy": "Cancellation available",
+      "meetingPoint": {
+        "lat": 5.6028,
+        "lng": -0.2197
+      },
+      "meetingPointLabel": "Achimota, Greater Accra Region",
+      "pickupNote": "All tours depart Achimota School at 6:00 AM on their respective dates and return to Achimota by 10 AM.",
+      "route": "Achimota → Akosombo → Keta → Return to Achimota"
+    },
+    {
+      "_id": "6a136cec05aafb714ea27a30",
+      "title": "Achimota Western and Coastal Legacy Route",
+      "slug": "achimota-western-and-coastal-legacy-route",
+      "description": "A four-day western and coastal journey connecting alumni to Ghana's historic coastal memory, symbolic centenary flag planting and Ashanti heritage. This route moves from Cape Coast and Elmina to Wiawso and Kumasi, ending with the combined alumni dinner.",
+      "destinationId": "6a149b6e0d2816e339485450",
+      "country": "ghana",
+      "durationDays": 4,
+      "basePrice": 1500,
+      "displayCurrency": "USD",
+      "coverImage": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779735261/elysium-tours/achimota/western-coastal/card.jpg",
+      "images": [
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804856/elysium-tours/achimota/western-coastal/elmina-castle.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804859/elysium-tours/achimota/western-coastal/assin-manso.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804861/elysium-tours/achimota/western-coastal/wiawso-flag-planting.jpg",
+        "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804862/elysium-tours/achimota/western-coastal/manhyia-palace.jpg"
+      ],
+      "heroMainImage": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779735377/elysium-tours/achimota/western-coastal/hero1.jpg",
+      "rating": 0,
+      "reviewCount": 0,
+      "tags": [
+        "Achimota",
+        "Centenary",
+        "UNESCO",
+        "Coastal",
+        "History"
+      ],
+      "tourType": "multi_day",
+      "category": "leisure",
+      "difficulty": "easy",
+      "bestFor": [
+        "Alumni",
+        "Students",
+        "Diaspora visitors",
+        "History enthusiasts"
+      ],
+      "languages": [
+        "English",
+        "Twi",
+        "French"
+      ],
+      "pickupIncluded": true,
+      "pickupLocation": "Achimota, Greater Accra Region",
+      "totalCapacity": 50,
+      "remainingCapacity": 50,
+      "isActive": true,
+      "status": "published",
+      "featured": true,
+      "startDate": "2027-01-25T00:00:00.000Z",
+      "endDate": "2027-01-28T00:00:00.000Z",
+      "availabilityBadge": "Limited Spots",
+      "featureType": "centenary",
+      "featureLabel": "Centenary Tour",
+      "highlights": [
+        "Assin Manso Slave River Site — Reflection site and final resting point of enslaved Africans before shipment.",
+        "Elmina Castle — UNESCO World Heritage site and oldest European building in sub-Saharan Africa.",
+        "Wiawso Flag Planting Ceremony — Symbolic flag planting ceremony in Wiawso on Day 2.",
+        "Manhyia Palace, Kumasi — Audience and guided tour focused on Ashanti heritage.",
+        "Combined Alumni Dinner, Kumasi — Day 3 evening with Tours 1 and 2 at Lancaster Hotel, Kumasi."
+      ],
+      "tourHighlights": [
+        {
+          "title": "Elmina Castle",
+          "description": "A UNESCO World Heritage site and one of the oldest European buildings in sub-Saharan Africa. Built by the Portuguese in 1482. Guided tour — emotionally significant.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804856/elysium-tours/achimota/western-coastal/elmina-castle.jpg",
+          "tags": [
+            "UNESCO",
+            "History"
+          ],
+          "gallerySections": [
+            "culture"
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb02"
+        },
+        {
+          "title": "Assin Manso Slave River Site",
+          "description": "A deeply moving reflection site on the banks of the Donkor Nsuo river — the final bathing place of enslaved Africans before shipment. One of Ghana's most significant heritage sites.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804859/elysium-tours/achimota/western-coastal/assin-manso.jpg",
+          "tags": [
+            "History"
+          ],
+          "gallerySections": [
+            "culture"
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb03"
+        },
+        {
+          "title": "Wiawso Flag Planting Ceremony",
+          "description": "Symbolic Achimota centenary flag planting ceremony in Wiawso on Day 2 — a moment of alumni pride at the heart of the Western Region.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804861/elysium-tours/achimota/western-coastal/wiawso-flag-planting.jpg",
+          "tags": [
+            "Achimota",
+            "Centenary"
+          ],
+          "gallerySections": [
+            "culture",
+            "activities"
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb04"
+        },
+        {
+          "title": "Manhyia Palace, Kumasi",
+          "description": "The seat of the Asantehene and the heart of Ashanti royal heritage. Guided palace museum tour on Day 3 before the combined alumni dinner.",
+          "image": "https://res.cloudinary.com/dyox4iu57/image/upload/v1779804862/elysium-tours/achimota/western-coastal/manhyia-palace.jpg",
+          "tags": [
+            "History"
+          ],
+          "gallerySections": [
+            "culture"
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb05"
+        }
+      ],
+      "inclusions": [
+        "Daily water: 3 bottles per person per day",
+        "Hotel breakfast is complementary",
+        "Guided heritage experiences",
+        "Lunch and dinner included",
+        "Fundraising / alumni dinner access",
+        "Achimota centenary flag planting moment"
+      ],
+      "exclusions": [
+        "International / domestic flights",
+        "Travel insurance",
+        "Personal spending & tips"
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "title": "Accra Departure — Assin Manso — Elmina Castle",
+          "description": "Depart Achimota School 6:00 AM. Drive to Assin Manso for a reflection ceremony. Guided tour of Elmina Castle. Overnight Cape Coast.",
+          "activities": [
+            {
+              "time": "06:00",
+              "activity": "Depart Achimota School — private AC coach",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb07"
+            },
+            {
+              "time": "09:30",
+              "activity": "Assin Manso Slave River Site — guided reflection ceremony",
+              "tag": "heritage",
+              "_id": "6a33f1aa579e7a0121b2fb08"
+            },
+            {
+              "time": "11:30",
+              "activity": "Drive to Elmina (45 min)",
+              "_id": "6a33f1aa579e7a0121b2fb09"
+            },
+            {
+              "time": "12:30",
+              "activity": "Guided tour of Elmina Castle — dungeons and Door of No Return",
+              "tag": "sightseeing",
+              "_id": "6a33f1aa579e7a0121b2fb0a"
+            },
+            {
+              "time": "15:00",
+              "activity": "Drive to Cape Coast — check in",
+              "_id": "6a33f1aa579e7a0121b2fb0b"
+            },
+            {
+              "time": "19:00",
+              "activity": "Welcome dinner",
+              "_id": "6a33f1aa579e7a0121b2fb0c"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb06"
+        },
+        {
+          "day": 2,
+          "title": "Western North — Wiawso Flag Planting Ceremony",
+          "description": "Drive through the Western North Region to Wiawso. The Achimota flag is planted here with local old students and community witnesses present.",
+          "activities": [
+            {
+              "time": "07:00",
+              "activity": "Depart Cape Coast — drive to Western North Region",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb0e"
+            },
+            {
+              "time": "12:00",
+              "activity": "Arrive Wiawso — welcome by local Achimota old students",
+              "_id": "6a33f1aa579e7a0121b2fb0f"
+            },
+            {
+              "time": "14:00",
+              "activity": "Wiawso Flag Planting Ceremony — community witnesses present",
+              "tag": "centenary",
+              "_id": "6a33f1aa579e7a0121b2fb10"
+            },
+            {
+              "time": "16:00",
+              "activity": "Depart for Kumasi (3 hrs)",
+              "_id": "6a33f1aa579e7a0121b2fb11"
+            },
+            {
+              "time": "19:00",
+              "activity": "Arrive Kumasi — check in",
+              "_id": "6a33f1aa579e7a0121b2fb12"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb0d"
+        },
+        {
+          "day": 3,
+          "title": "Manhyia Palace — Combined Alumni Dinner, Kumasi",
+          "description": "Morning visit to Manhyia Palace. Evening: grand combined alumni dinner with Tour 1 at Lancaster Hotel, Kumasi.",
+          "activities": [
+            {
+              "time": "09:00",
+              "activity": "Manhyia Palace — guided tour of Ashanti royal heritage",
+              "tag": "culture",
+              "_id": "6a33f1aa579e7a0121b2fb14"
+            },
+            {
+              "time": "11:30",
+              "activity": "Kumasi Cultural Centre and Kejetia Market (optional)",
+              "_id": "6a33f1aa579e7a0121b2fb15"
+            },
+            {
+              "time": "14:00",
+              "activity": "Rest and prepare for dinner",
+              "_id": "6a33f1aa579e7a0121b2fb16"
+            },
+            {
+              "time": "19:00",
+              "activity": "Combined Alumni Dinner — Tours 1 & 2 together at Lancaster Hotel",
+              "tag": "event",
+              "_id": "6a33f1aa579e7a0121b2fb17"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb13"
+        },
+        {
+          "day": 4,
+          "title": "Return to Accra",
+          "description": "Depart Kumasi after breakfast. Return to Accra by afternoon.",
+          "activities": [
+            {
+              "time": "08:00",
+              "activity": "Breakfast and check out",
+              "_id": "6a33f1aa579e7a0121b2fb19"
+            },
+            {
+              "time": "09:00",
+              "activity": "Depart Kumasi — return to Accra (5 hrs)",
+              "tag": "transport",
+              "_id": "6a33f1aa579e7a0121b2fb1a"
+            },
+            {
+              "time": "14:30",
+              "activity": "Arrive Achimota School — tour concludes",
+              "_id": "6a33f1aa579e7a0121b2fb1b"
+            }
+          ],
+          "_id": "6a33f1aa579e7a0121b2fb18"
+        }
+      ],
+      "createdAt": "2026-05-24T21:26:04.753Z",
+      "updatedAt": "2026-08-17T03:19:36.334Z",
+      "__v": 1,
+      "viewCount": 55,
+      "accommodationOptions": [
+        {
+          "label": "Lancaster Hotel, Kumasi",
+          "tier": "standard",
+          "description": "The venue for the grand combined alumni dinner. Central Kumasi location, full-service hotel with restaurant, conference facilities, and comfortable en-suite rooms.",
+          "notes": "3-star hotel in central Kumasi",
+          "pricing": [
+            {
+              "roomType": "single",
+              "pricePerPerson": 1500
+            },
+            {
+              "roomType": "double",
+              "pricePerPerson": 2400
+            }
+          ],
+          "isActive": true,
+          "_id": "6a33f1aa579e7a0121b2fb01"
+        }
+      ],
+      "cancellable": true,
+      "cancellationPolicy": "Cancellation available",
+      "meetingPoint": {
+        "lat": 5.6028,
+        "lng": -0.2197
+      },
+      "meetingPointLabel": "Achimota, Greater Accra Region",
+      "pickupNote": "All tours depart Achimota School at 6:00 AM on their respective dates and return to Achimota by 10 AM.",
+      "route": "Achimota → Cape Coast → Wiawso → Kumasi → Achimota"
+    }
+  ],
+  "bookings": [],
+  "wishlists": []
+}
