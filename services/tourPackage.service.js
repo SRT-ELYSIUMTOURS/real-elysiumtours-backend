@@ -3,9 +3,29 @@
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES, SELLING_MODES, CURRENCIES } = require("../utils/constants");
 const { generateSlug } = require("../utils/slug.utils");
+const { publicCache, TTL } = require("../config/cache.config");
+const CacheInvalidation = require("../mixins/cacheInvalidation.mixin");
 
 module.exports = {
 	name: "tourPackage",
+
+	// Every write here must clear the cached catalogue reads below. Pricing tier
+	// edits go through `update` (syncPricingTiers), so they're covered.
+	mixins: [
+		CacheInvalidation({
+			actions: [
+				"create",
+				"update",
+				"toggleActive",
+				"publish",
+				"archive",
+				"addPricingTier",
+				"updatePricingTier",
+				"removePricingTier",
+			],
+			patterns: ["tourPackage.**"],
+		}),
+	],
 
 	dependencies: [
 		"tourPackage.model",
@@ -44,6 +64,9 @@ module.exports = {
 		 */
 		search: {
 			auth: undefined,
+			// Identical filters yield identical result sets. Role is in the key
+			// because non-admins only ever see published packages.
+			cache: publicCache(["query","destinationId","minPrice","maxPrice","minGroupSize","sellingMode","sortBy","page","pageSize"]),
 			params: {
 				query: "string",
 				destinationId: "string|optional",
@@ -174,6 +197,10 @@ module.exports = {
 		 */
 		list: {
 			auth: undefined,
+			// Hottest read in the app: every catalogue page view and every uptime
+			// ping lands here. The handler branches on ctx.meta.user.role (admins
+			// see drafts), which is exactly why #user.role is part of the key.
+			cache: publicCache(["destinationId","organizationId","country","category","tourType","featured","isActive","status","sellingMode","sortBy","minPrice","maxPrice","page","pageSize","limit"]),
 			params: {
 				destinationId: "string|optional",
 				organizationId: "string|optional",
@@ -283,6 +310,7 @@ module.exports = {
 		 */
 		get: {
 			auth: undefined,
+			cache: publicCache(["id"], TTL.DETAIL),
 			params: {
 				id: "string",
 			},
@@ -326,6 +354,7 @@ module.exports = {
 		 */
 		getBySlug: {
 			auth: undefined,
+			cache: publicCache(["slug"], TTL.DETAIL),
 			params: {
 				slug: "string",
 			},
@@ -373,9 +402,11 @@ module.exports = {
 			auth: "required",
 			role: "admin",
 			params: {
+				$$strict: "remove",
 				title: "string",
 				description: "string|optional",
 				destinationId: "string",
+				destinations: "array|optional",
 				hotelPartnerId: "string|optional",
 				attractionIds: "array|optional",
 				diningIds: "array|optional",
@@ -393,32 +424,67 @@ module.exports = {
 				pricingTiers: "array|optional",
 				displayCurrency: "string|optional",
 				accommodationOptions: "array|optional",
+				basePrice: { type: "number", optional: true, convert: true },
+				coverImage: "string|optional",
+				tourHighlights: "array|optional",
+				packingList: "array|optional",
+				importantInformation: "object|optional",
+				bookingAddOns: "array|optional",
+				categoryRatings: "array|optional",
+				businessAmenities: "object|optional",
+				// Presentation / catalogue
+				tags: "array|optional",
+				country: "string|optional",
+				tourType: "string|optional",
+				category: "string|optional",
+				featured: { type: "boolean", optional: true, convert: true },
+				difficulty: "string|optional",
+				minAge: { type: "number", optional: true, convert: true },
+				bestFor: "array|optional",
+				languages: "array|optional",
+				route: "string|optional",
+				availabilityBadge: "string|optional",
+				availabilitySchedule: "string|optional",
+				featureType: "string|optional",
+				featureLabel: "string|optional",
+				statusBadge: "object|optional",
+				// Logistics
+				pickupIncluded: { type: "boolean", optional: true, convert: true },
+				pickupLocation: "string|optional",
+				pickupNote: "string|optional",
+				meetingPoint: "object|optional",
+				meetingPointLabel: "string|optional",
+				guideId: "string|optional",
+				cancellable: { type: "boolean", optional: true, convert: true },
+				cancellationPolicy: "string|optional",
+				// Booking rules
+				bookingCutoffHours: { type: "number", optional: true, convert: true },
+				waitlistEnabled: { type: "boolean", optional: true, convert: true },
+				maxWaitlistSize: { type: "number", optional: true, convert: true },
+				autoConfirmationHours: { type: "number", optional: true, convert: true },
+				status: "string|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
+				// super_admin only — guarded in the handler
 				organizationId: "string|optional",
 			},
 			async handler(ctx) {
+				// pricingTiers and organizationId need bespoke handling; everything else
+				// is a plain schema field and is spread straight through. The
+				// $$strict:"remove" on the params above guarantees that `fields`
+				// holds nothing unexpected.
+				//
+				// This replaced a 21-field manual destructure, which silently dropped every
+				// schema field it did not happen to name (itinerary highlights, add-ons,
+				// meeting point, badges, booking rules...).
+				const { pricingTiers, organizationId, ...fields } = ctx.params;
 				const {
 					title,
-					description,
 					destinationId,
 					hotelPartnerId,
 					attractionIds,
-					diningIds,
-					transportType,
 					sellingMode,
 					totalCapacity,
-					durationDays,
-					images,
-					highlights,
-					inclusions,
-					exclusions,
-					itinerary,
-					startDate,
-					endDate,
-					pricingTiers,
-					displayCurrency,
-					accommodationOptions,
-					organizationId,
-				} = ctx.params;
+				} = fields;
 
 				// Validate destinationId exists
 				const destination = await ctx.call(
@@ -477,37 +543,40 @@ module.exports = {
 				// Auto-generate slug from title
 				const slug = generateSlug(title);
 
-				// Build package data
+				// Build package data — every validated field passes through; the
+				// explicit entries below only supply defaults.
 				const packageData = {
-					title,
-					description,
+					...fields,
 					slug,
-					destinationId,
-					hotelPartnerId,
-					attractionIds: attractionIds || [],
-					diningIds: diningIds || [],
-					transportType,
-					images: images || [],
+					attractionIds: fields.attractionIds || [],
+					diningIds: fields.diningIds || [],
+					images: fields.images || [],
 					sellingMode: sellingMode || SELLING_MODES.GROUP_BUY,
-					totalCapacity,
-					durationDays,
-					isActive: true,
-					status: "draft",
-					highlights: highlights || [],
-					inclusions: inclusions || [],
-					exclusions: exclusions || [],
-					itinerary: itinerary || [],
-					startDate,
-					endDate,
-					displayCurrency: displayCurrency || CURRENCIES.GHS,
-					accommodationOptions: accommodationOptions || [],
+					isActive: fields.isActive !== undefined ? fields.isActive : true,
+					status: fields.status || "draft",
+					highlights: fields.highlights || [],
+					inclusions: fields.inclusions || [],
+					exclusions: fields.exclusions || [],
+					itinerary: fields.itinerary || [],
+					displayCurrency: fields.displayCurrency || CURRENCIES.GHS,
+					accommodationOptions: fields.accommodationOptions || [],
 					createdBy: ctx.meta && ctx.meta.user ? ctx.meta.user._id : undefined,
 				};
 
-				// Partner-org scoping (e.g. OAA): super_admin can stamp a tour with a
-				// specific organizationId via the form. Non-super_admin callers get
-				// their orgId auto-injected by tenantScope.middleware on the model.create.
+				// Partner-org scoping (e.g. OAA): only super_admin may stamp a tour with
+				// an explicit organizationId. Everyone else gets their own orgId injected
+				// by tenantScope.middleware on model.create — accepting the field from a
+				// regular admin would let them plant records in another tenant's org.
 				if (organizationId) {
+					const role = ctx.meta && ctx.meta.user ? ctx.meta.user.role : null;
+					if (role !== "super_admin") {
+						throw new MoleculerClientError(
+							"Only a super admin may set organizationId on a tour package.",
+							403,
+							ERROR_CODES.FORBIDDEN,
+							{ organizationId }
+						);
+					}
 					packageData.organizationId = organizationId;
 				}
 
@@ -558,6 +627,7 @@ module.exports = {
 			auth: "required",
 			role: "admin",
 			params: {
+				$$strict: "remove",
 				id: "string",
 				title: "string|optional",
 				description: "string|optional",
@@ -578,10 +648,59 @@ module.exports = {
 				endDate: "string|optional",
 				displayCurrency: "string|optional",
 				accommodationOptions: "array|optional",
-				organizationId: "string|optional",
+				basePrice: { type: "number", optional: true, convert: true },
+				coverImage: "string|optional",
+				tourHighlights: "array|optional",
+				packingList: "array|optional",
+				importantInformation: "object|optional",
+				bookingAddOns: "array|optional",
+				categoryRatings: "array|optional",
+				businessAmenities: "object|optional",
+				destinations: "array|optional",
+				// Presentation / catalogue
+				tags: "array|optional",
+				country: "string|optional",
+				tourType: "string|optional",
+				category: "string|optional",
+				featured: { type: "boolean", optional: true, convert: true },
+				difficulty: "string|optional",
+				minAge: { type: "number", optional: true, convert: true },
+				bestFor: "array|optional",
+				languages: "array|optional",
+				route: "string|optional",
+				availabilityBadge: "string|optional",
+				availabilitySchedule: "string|optional",
+				featureType: "string|optional",
+				featureLabel: "string|optional",
+				statusBadge: "object|optional",
+				// Logistics
+				pickupIncluded: { type: "boolean", optional: true, convert: true },
+				pickupLocation: "string|optional",
+				pickupNote: "string|optional",
+				meetingPoint: "object|optional",
+				meetingPointLabel: "string|optional",
+				guideId: "string|optional",
+				cancellable: { type: "boolean", optional: true, convert: true },
+				cancellationPolicy: "string|optional",
+				// Booking rules
+				bookingCutoffHours: { type: "number", optional: true, convert: true },
+				waitlistEnabled: { type: "boolean", optional: true, convert: true },
+				maxWaitlistSize: { type: "number", optional: true, convert: true },
+				autoConfirmationHours: { type: "number", optional: true, convert: true },
+				// Primary pricing model for the catalogue. Not a package field — it's
+				// synced into the separate packagepricings collection by
+				// syncPricingTiers() after the package itself is saved.
+				pricingTiers: "array|optional",
+				status: "string|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
+				// NOTE: organizationId is deliberately NOT accepted here.
+				// tenantScope.middleware scopes *.model.create but NOT *.model.update, so
+				// accepting it would let an admin move a package into another tenant org.
 			},
 			async handler(ctx) {
-				const { id, ...updateFields } = ctx.params;
+				// pricingTiers is not a field on the package — it's a separate
+				// collection, synced after the package itself is saved.
+				const { id, pricingTiers, ...updateFields } = ctx.params;
 
 				// Verify package exists
 				const existing = await ctx.call(
@@ -640,11 +759,21 @@ module.exports = {
 					}
 				}
 
-				return ctx.call(
+				const updated = await ctx.call(
 					"tourPackage.model.update",
 					{ id, ...updateFields },
 					{ meta: ctx.meta }
 				);
+
+				// Pricing tiers live in their own collection, so they're synced
+				// separately. Omitting the key leaves existing tiers untouched;
+				// passing an empty array clears them.
+				if (pricingTiers !== undefined) {
+					const tiers = await this.syncPricingTiers(ctx, id, pricingTiers);
+					return { ...updated, pricingTiers: tiers };
+				}
+
+				return updated;
 			},
 		},
 
@@ -1357,6 +1486,94 @@ module.exports = {
 	},
 
 	methods: {
+		/**
+		 * Reconcile a package's pricing tiers with the set submitted by the admin.
+		 *
+		 * Pricing tiers are the primary pricing model for the catalogue: they live
+		 * in their own `packagepricings` collection rather than on the package, so
+		 * a plain model.update can't carry them. This keeps them editable as part
+		 * of the normal tour save instead of requiring separate tier endpoints.
+		 *
+		 * Semantics (sync by id, not replace-all, so ids survive edits):
+		 *   - incoming entry WITH an id      → update that tier
+		 *   - incoming entry WITHOUT an id   → create a new tier
+		 *   - existing active tier not in the incoming set → remove
+		 *
+		 * Bookings snapshot `pricePerPerson` at booking time and hold no reference
+		 * to a tier id, so removing a tier never orphans a booking.
+		 *
+		 * @param {Context} ctx
+		 * @param {String} packageId
+		 * @param {Array} incoming - tier objects from the admin form
+		 * @returns {Promise<Array>} the package's tiers after syncing
+		 */
+		async syncPricingTiers(ctx, packageId, incoming) {
+			const existing = await ctx.call(
+				"packagePricing.model.find",
+				{ query: { packageId, isActive: true } },
+				{ meta: ctx.meta }
+			);
+
+			const idOf = (t) => {
+				const raw = t && (t._id || t.id);
+				return raw ? raw.toString() : null;
+			};
+
+			const keptIds = new Set();
+
+			for (const tier of incoming) {
+				const tierId = idOf(tier);
+				const fields = {
+					minGroupSize: tier.minGroupSize,
+					maxGroupSize: tier.maxGroupSize,
+					pricePerPerson: tier.pricePerPerson,
+					totalPrice: tier.totalPrice,
+					currency: tier.currency,
+					label: tier.label,
+				};
+
+				// Drop undefined keys so a partial edit doesn't blank stored values.
+				for (const key of Object.keys(fields)) {
+					if (fields[key] === undefined) delete fields[key];
+				}
+
+				if (tierId && existing.some((e) => idOf(e) === tierId)) {
+					keptIds.add(tierId);
+					await ctx.call(
+						"packagePricing.model.update",
+						{ id: tierId, ...fields },
+						{ meta: ctx.meta }
+					);
+				} else {
+					const created = await ctx.call(
+						"packagePricing.model.create",
+						{ packageId, ...fields, isActive: true },
+						{ meta: ctx.meta }
+					);
+					const createdId = idOf(created);
+					if (createdId) keptIds.add(createdId);
+				}
+			}
+
+			// Anything the admin removed from the list goes away.
+			for (const tier of existing) {
+				const tierId = idOf(tier);
+				if (tierId && !keptIds.has(tierId)) {
+					await ctx.call(
+						"packagePricing.model.remove",
+						{ id: tierId },
+						{ meta: ctx.meta }
+					);
+				}
+			}
+
+			return ctx.call(
+				"packagePricing.model.find",
+				{ query: { packageId, isActive: true } },
+				{ meta: ctx.meta }
+			);
+		},
+
 		/**
 		 * Apply sorting to search results based on sortBy parameter.
 		 * For "rating" sort, fetches review stats per package (post-query).

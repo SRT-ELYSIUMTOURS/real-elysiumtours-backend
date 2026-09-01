@@ -2,9 +2,20 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES } = require("../utils/constants");
+const { locationPatchFromGpsCoords } = require("../utils/geo.utils");
+const { publicCache, TTL } = require("../config/cache.config");
+const CacheInvalidation = require("../mixins/cacheInvalidation.mixin");
 
 module.exports = {
 	name: "dining",
+
+	// Writes must clear the cached catalogue reads below.
+	mixins: [
+		CacheInvalidation({
+			actions: ["create", "update", "toggleActive", "setCommission"],
+			patterns: ["dining.**"],
+		}),
+	],
 
 	dependencies: ["diningPartner.model", "destination.model"],
 
@@ -37,6 +48,7 @@ module.exports = {
 		 */
 		list: {
 			auth: undefined,
+			cache: publicCache(["destinationId","cuisineType","isActive","sort","page","pageSize"]),
 			params: {
 				destinationId: "string|optional",
 				cuisineType: "string|optional",
@@ -104,6 +116,7 @@ module.exports = {
 		 */
 		getByDestination: {
 			auth: undefined,
+			cache: publicCache(["destinationId"]),
 			params: {
 				destinationId: "string",
 			},
@@ -123,18 +136,34 @@ module.exports = {
 		create: {
 			auth: "required",
 			role: "admin",
+			// $strict:"remove" makes this whitelist authoritative — see
+			// hotelPartner.service.js create for the rationale.
+			//
+			// NOTE tier vs priceRange are DISTINCT schema fields:
+			//   tier       budget|standard|premium   (commercial partner tier)
+			//   priceRange budget|moderate|premium|luxury (customer-facing band)
+			// priceRange was missing here entirely, so the admin form collected it
+			// and the value was never persisted.
+			//
+			// Server-controlled: rating, reviewCount, organizationId, location.
 			params: {
+				$$strict: "remove",
 				name: "string",
 				destinationId: "string",
 				cuisineType: "string|optional",
 				tier: "string|optional",
+				priceRange: "string|optional",
 				commissionRate: { type: "number", optional: true, convert: true },
 				contactInfo: "object|optional",
 				menuOptions: "array|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				openingHours: "object|optional",
+				gpsCoords: "object|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { destinationId, ...rest } = ctx.params;
+				const { destinationId, gpsCoords, ...rest } = ctx.params;
 
 				// Validate destination exists
 				const destination = await ctx.call(
@@ -154,7 +183,11 @@ module.exports = {
 
 				return ctx.call(
 					"diningPartner.model.create",
-					{ destinationId, ...rest },
+					{
+						destinationId,
+						...rest,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},
@@ -167,20 +200,27 @@ module.exports = {
 		update: {
 			auth: "required",
 			role: "admin",
+			// See create above. organizationId is not accepted: *.model.update is
+			// not tenant-scoped by tenantScope.middleware.
 			params: {
+				$$strict: "remove",
 				id: "string",
 				name: "string|optional",
 				destinationId: "string|optional",
 				cuisineType: "string|optional",
 				tier: "string|optional",
+				priceRange: "string|optional",
 				commissionRate: { type: "number", optional: true, convert: true },
 				contactInfo: "object|optional",
 				menuOptions: "array|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				openingHours: "object|optional",
+				gpsCoords: "object|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { id, ...updateFields } = ctx.params;
+				const { id, gpsCoords, ...updateFields } = ctx.params;
 
 				const existing = await ctx.call(
 					"diningPartner.model.get",
@@ -199,7 +239,11 @@ module.exports = {
 
 				return ctx.call(
 					"diningPartner.model.update",
-					{ id, ...updateFields },
+					{
+						id,
+						...updateFields,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},

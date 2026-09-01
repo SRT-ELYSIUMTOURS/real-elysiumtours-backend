@@ -3,9 +3,20 @@
 const { MoleculerClientError } = require("moleculer").Errors;
 const slugify = require("slugify");
 const { ERROR_CODES } = require("../utils/constants");
+const { locationPatchFromGpsCoords } = require("../utils/geo.utils");
+const { publicCache, TTL } = require("../config/cache.config");
+const CacheInvalidation = require("../mixins/cacheInvalidation.mixin");
 
 module.exports = {
 	name: "destination",
+
+	// Writes must clear the cached catalogue reads below.
+	mixins: [
+		CacheInvalidation({
+			actions: ["create", "update", "toggleActive"],
+			patterns: ["destination.**", "tourPackage.**"],
+		}),
+	],
 
 	dependencies: ["destination.model", "hotelPartner.model", "attraction.model", "diningPartner.model"],
 
@@ -108,6 +119,7 @@ module.exports = {
 		 */
 		list: {
 			auth: undefined,
+			cache: publicCache(["region","isActive","page","pageSize"]),
 			params: {
 				region: "string|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
@@ -135,6 +147,7 @@ module.exports = {
 		 */
 		get: {
 			auth: undefined,
+			cache: publicCache(["id"], TTL.DETAIL),
 			params: {
 				id: "string",
 			},
@@ -164,6 +177,7 @@ module.exports = {
 		 */
 		getBySlug: {
 			auth: undefined,
+			cache: publicCache(["slug"], TTL.DETAIL),
 			params: {
 				slug: "string",
 			},
@@ -194,29 +208,49 @@ module.exports = {
 		create: {
 			auth: "required",
 			role: "admin",
+			// This whitelist previously held only 6 fields while the admin form sent
+			// 12, so country/subtitle/coverImage/bestTimeToVisit/aboutText/travelTips
+			// were accepted by the UI and then thrown away by the handler's manual
+			// destructure. $$strict:"remove" now makes the list authoritative and the
+			// handler spreads everything it validates.
+			//
+			// Server-controlled, deliberately NOT accepted: slug (generated from
+			// name), tourCount (maintained by tour package writes), organizationId
+			// (stamped by tenantScope.middleware), location (derived from gpsCoords).
 			params: {
+				$$strict: "remove",
 				name: "string",
 				region: "string",
 				description: "string|optional",
 				gpsCoords: "object|optional",
 				images: "array|optional",
 				highlights: "array|optional",
+				country: "string|optional",
+				subtitle: "string|optional",
+				coverImage: "string|optional",
+				bestTimeToVisit: "string|optional",
+				aboutText: "string|optional",
+				travelTips: "array|optional",
+				weather: "object|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { name, region, description, gpsCoords, images, highlights } = ctx.params;
+				const { gpsCoords, ...fields } = ctx.params;
 
-				const slug = slugify(name, { lower: true, strict: true });
+				const slug = slugify(fields.name, { lower: true, strict: true });
 
 				const destination = await ctx.call(
 					"destination.model.create",
 					{
-						name,
+						...fields,
 						slug,
-						region,
-						description,
 						gpsCoords,
-						images: images || [],
-						highlights: highlights || [],
+						images: fields.images || [],
+						highlights: fields.highlights || [],
+						travelTips: fields.travelTips || [],
+						// Populates the 2dsphere index so the destination is reachable
+						// via findNearbyPartners / geo search.
+						...locationPatchFromGpsCoords(gpsCoords),
 					},
 					{ meta: ctx.meta }
 				);
@@ -233,7 +267,10 @@ module.exports = {
 		update: {
 			auth: "required",
 			role: "admin",
+			// See create above. organizationId is not accepted here because
+			// tenantScope.middleware scopes *.model.create but NOT *.model.update.
 			params: {
+				$$strict: "remove",
 				id: "string",
 				name: "string|optional",
 				region: "string|optional",
@@ -241,10 +278,17 @@ module.exports = {
 				gpsCoords: "object|optional",
 				images: "array|optional",
 				highlights: "array|optional",
+				country: "string|optional",
+				subtitle: "string|optional",
+				coverImage: "string|optional",
+				bestTimeToVisit: "string|optional",
+				aboutText: "string|optional",
+				travelTips: "array|optional",
+				weather: "object|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { id, ...updateFields } = ctx.params;
+				const { id, gpsCoords, ...updateFields } = ctx.params;
 
 				// Verify destination exists
 				const existing = await ctx.call(
@@ -269,7 +313,12 @@ module.exports = {
 
 				return ctx.call(
 					"destination.model.update",
-					{ id, ...updateFields },
+					{
+						id,
+						...updateFields,
+						...(gpsCoords ? { gpsCoords } : {}),
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},

@@ -43,13 +43,54 @@ const MONGOOSE_COLLECTIONS = [
 	"sessions",
 ];
 
+// ─── Connection options ───────────────────────────────────────────────────────
+// MongoDB Atlas sits outside the hosting platform, so ALL database traffic is
+// billed egress. With driver defaults this service burned ~5 GB/month, most of
+// it while completely idle. These options address that directly:
+//
+//   compressors            Wire-protocol compression. zlib ships with Node (no
+//                          extra dependency) and typically cuts payloads well
+//                          over half. Biggest single saving. Costs a little CPU.
+//   heartbeatFrequencyMS   The driver pings EVERY replica-set node on this
+//                          interval, forever, even with zero traffic. The 10s
+//                          default means ~780k pings/month against a 3-node
+//                          Atlas cluster. 60s cuts that ~6x. Trade-off: slightly
+//                          slower failover detection, which is fine for a
+//                          single-region deployment.
+//   maxPoolSize            Default is 100 — far more than this service needs.
+//                          Each pooled connection adds monitoring traffic and a
+//                          TLS handshake.
+//   autoIndex              Mongoose re-issues createIndexes for every model on
+//                          every boot. Wasteful on a platform that cold-starts;
+//                          indexes belong in a migration/seed step. Left ON
+//                          outside production so local/test still self-heal.
+//
+// All tunable via env so production can be adjusted without a code change.
+const num = (value, fallback) => {
+	const parsed = parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+function buildConnectionOptions() {
+	return {
+		compressors: process.env.MONGO_COMPRESSORS || "zlib",
+		zlibCompressionLevel: num(process.env.MONGO_ZLIB_LEVEL, 6),
+		heartbeatFrequencyMS: num(process.env.MONGO_HEARTBEAT_MS, 60000),
+		maxPoolSize: num(process.env.MONGO_MAX_POOL, 10),
+		minPoolSize: num(process.env.MONGO_MIN_POOL, 0),
+		autoIndex: process.env.MONGO_AUTO_INDEX
+			? process.env.MONGO_AUTO_INDEX === "true"
+			: process.env.NODE_ENV !== "production",
+	};
+}
+
 // Shared connection promise — ensures a single mongoose.connect() call
 let connectionPromise = null;
 
 function ensureConnected() {
 	if (!connectionPromise) {
 		const uri = process.env.MONGO_URI || "mongodb://localhost:27017/elysium-tours";
-		connectionPromise = mongoose.connect(uri);
+		connectionPromise = mongoose.connect(uri, buildConnectionOptions());
 	}
 	return connectionPromise;
 }
@@ -150,3 +191,6 @@ module.exports = function (collection) {
 
 module.exports.MONGOOSE_COLLECTIONS = MONGOOSE_COLLECTIONS;
 module.exports.ensureConnected = ensureConnected;
+// Exported so the bandwidth-guard test can assert the egress-reducing options
+// are actually applied (see tests/unit/mixins/dbConnectionOptions.test.js).
+module.exports.buildConnectionOptions = buildConnectionOptions;

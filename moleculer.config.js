@@ -121,10 +121,39 @@ module.exports = {
 
   transporter,
 
-  // Caching explicitly disabled during development.
-  // Cache poisoning risk: stale data in request/response cycles.
-  // Enable only after development is complete, with dedicated testing.
-  cacher: null,
+  // ─── Caching ────────────────────────────────────────────────────────────────
+  // Enabled for public catalogue reads only. MongoDB Atlas is off-platform, so
+  // every uncached read is billed egress; with caching off entirely this service
+  // re-queried the full catalogue on every page load and every uptime ping.
+  //
+  // Memory (in-process) rather than Redis on purpose: a managed Redis is ALSO
+  // off-platform, so a Redis cacher would trade Atlas egress for Redis egress
+  // and save nothing. An in-process cache uses no network at all.
+  //
+  // Which actions are cached, the mandatory tenant/role scoping of cache keys,
+  // and the never-cache list all live in config/cache.config.js. Invalidation is
+  // handled declaratively by mixins/cacheInvalidation.mixin.js. Both are
+  // enforced by tests/unit/services/cachePolicy.test.js.
+  //
+  // IMPORTANT: an in-process cache is only coherent because this runs as a
+  // single process. If MULTI_NODE is enabled, each instance would hold its own
+  // copy and a write on one would not invalidate the others — switch to a shared
+  // cacher (accepting its egress cost) before scaling out.
+  cacher: process.env.DISABLE_CACHE === "true" ? null : {
+    type: "Memory",
+    options: {
+      // Fallback TTL. Every cached action sets its own; this only applies if one
+      // forgets, so it is deliberately short.
+      ttl: 60,
+      // Bound the entry count so a wide param space (search terms, pagination)
+      // can't grow the heap without limit on a small instance.
+      max: 1000,
+      // Hand callers a copy. Enrichment code spreads and mutates result objects,
+      // and without this a caller could mutate the cached entry in place and
+      // corrupt it for everyone else.
+      clone: true,
+    },
+  },
 
   serializer: "JSON",
 

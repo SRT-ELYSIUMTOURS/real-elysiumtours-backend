@@ -1,6 +1,6 @@
 "use strict";
 
-const { BOOKING_TRANSITIONS, isValidTransition } = require("../../config/bookingStates.config");
+const { BOOKING_TRANSITIONS, isValidTransition, getValidTransitions } = require("../../config/bookingStates.config");
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES } = require("../../utils/constants");
 
@@ -16,6 +16,17 @@ module.exports = {
 				);
 			}
 			return true;
+		},
+
+		/**
+		 * Valid next statuses for a given current status.
+		 * Single source of truth for admin UI status controls — the UI must never
+		 * hardcode the transition map.
+		 * @param {string} fromStatus
+		 * @returns {string[]} empty array for terminal states or unknown statuses
+		 */
+		getBookingTransitions(fromStatus) {
+			return getValidTransitions(BOOKING_TRANSITIONS, fromStatus);
 		},
 	},
 };

@@ -2,9 +2,20 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES } = require("../utils/constants");
+const { locationPatchFromGpsCoords } = require("../utils/geo.utils");
+const { publicCache, TTL } = require("../config/cache.config");
+const CacheInvalidation = require("../mixins/cacheInvalidation.mixin");
 
 module.exports = {
 	name: "hotelPartner",
+
+	// Writes must clear the cached catalogue reads below.
+	mixins: [
+		CacheInvalidation({
+			actions: ["create", "update", "toggleActive", "setCommission", "updateAvailability", "addCloseOutDates"],
+			patterns: ["hotelPartner.**"],
+		}),
+	],
 
 	dependencies: ["hotelPartner.model", "destination.model"],
 
@@ -37,6 +48,7 @@ module.exports = {
 		 */
 		list: {
 			auth: undefined,
+			cache: publicCache(["destinationId","tier","isActive","page","pageSize"]),
 			params: {
 				destinationId: "string|optional",
 				tier: "string|optional",
@@ -154,6 +166,7 @@ module.exports = {
 		 */
 		getByDestination: {
 			auth: undefined,
+			cache: publicCache(["destinationId"]),
 			params: {
 				destinationId: "string",
 			},
@@ -173,7 +186,16 @@ module.exports = {
 		create: {
 			auth: "required",
 			role: "admin",
+			// $$strict: "remove" makes this whitelist authoritative — undeclared keys
+			// are deleted from ctx.params before the handler runs. Without it the
+			// handler's `...rest` spread would forward ANY client-supplied field to
+			// Mongoose, allowing mass assignment of server-owned fields
+			// (rating, reviewCount) and cross-tenant reassignment via organizationId.
+			// Server-controlled and deliberately absent: organizationId (stamped by
+			// tenantScope.middleware), rating, reviewCount, location (derived from
+			// gpsCoords below).
 			params: {
+				$$strict: "remove",
 				name: "string",
 				destinationId: "string",
 				tier: "string",
@@ -186,9 +208,17 @@ module.exports = {
 				closeOutDates: "array|optional",
 				amenities: "array|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				starRating: { type: "number", optional: true, convert: true },
+				shortDescription: "string|optional",
+				priceRange: "string|optional",
+				packages: "array|optional",
+				// Admin supplies lat/lng; the GeoJSON `location` used by the
+				// 2dsphere index is derived from it, never accepted raw.
+				gpsCoords: "object|optional",
 			},
 			async handler(ctx) {
-				const { destinationId, ...rest } = ctx.params;
+				const { destinationId, gpsCoords, ...rest } = ctx.params;
 
 				// Validate destination exists
 				const destination = await ctx.call(
@@ -208,7 +238,11 @@ module.exports = {
 
 				const partner = await ctx.call(
 					"hotelPartner.model.create",
-					{ destinationId, ...rest },
+					{
+						destinationId,
+						...rest,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 
@@ -224,7 +258,12 @@ module.exports = {
 		update: {
 			auth: "required",
 			role: "admin",
+			// See create above for why $$strict: "remove" is required here.
+			// organizationId is intentionally NOT accepted: .model.update is not
+			// tenant-scoped by tenantScope.middleware, so accepting it would let an
+			// admin move a record into another organization.
 			params: {
+				$$strict: "remove",
 				id: "string",
 				name: "string|optional",
 				destinationId: "string|optional",
@@ -238,10 +277,16 @@ module.exports = {
 				closeOutDates: "array|optional",
 				amenities: "array|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				starRating: { type: "number", optional: true, convert: true },
+				shortDescription: "string|optional",
+				priceRange: "string|optional",
+				packages: "array|optional",
+				gpsCoords: "object|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { id, ...updateFields } = ctx.params;
+				const { id, gpsCoords, ...updateFields } = ctx.params;
 
 				const existing = await ctx.call(
 					"hotelPartner.model.get",
@@ -260,7 +305,11 @@ module.exports = {
 
 				return ctx.call(
 					"hotelPartner.model.update",
-					{ id, ...updateFields },
+					{
+						id,
+						...updateFields,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},

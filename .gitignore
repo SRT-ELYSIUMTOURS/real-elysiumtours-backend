@@ -53,3 +53,7 @@ mongo-backup-*.json
 # Generated/temp scripts
 scripts/seedScripts/_writer.js
 scripts/seedScripts/seed-e2e-orgs.js
+
+# Claude Code agent worktrees — transient copies of the repo. Never commit:
+# a stale copy here once retained the pre-fix Redis transporter config.
+.claude/worktrees/

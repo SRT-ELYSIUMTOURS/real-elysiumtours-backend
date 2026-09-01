@@ -244,12 +244,16 @@ module.exports = {
 					"POST /check-overlap": "booking.checkOverlap",
 					"GET /": "booking.listBookings",
 					"GET /:id": "booking.getBooking",
+					"GET /:bookingId/transitions": "booking.getTransitions",
 					"PUT /:id/status": "booking.updateStatus",
 					"PUT /:id/cancel": "booking.cancelBooking",
-					"POST /:id/confirm-partner": "booking.confirmPartner",
-					"POST /:id/reject-partner": "booking.rejectPartner",
-					"GET /:id/substitutions/:partnerId": "booking.suggestSubstitution",
-					"POST /:id/accept-substitution": "booking.acceptSubstitution",
+					// URL param MUST be :bookingId — these four actions declare
+					// `bookingId` in their params, so :id would arrive as ctx.params.id
+					// and fail validation with a 422 on every call.
+					"POST /:bookingId/confirm-partner": "booking.confirmPartner",
+					"POST /:bookingId/reject-partner": "booking.rejectPartner",
+					"GET /:bookingId/substitutions/:partnerId": "booking.suggestSubstitution",
+					"POST /:bookingId/accept-substitution": "booking.acceptSubstitution",
 				},
 			},
 
@@ -284,7 +288,9 @@ module.exports = {
 				authorization: true,
 				authentication: true,
 				aliases: {
-					"GET /dashboard": "admin.getDashboard",
+					// NOTE: "GET /dashboard" → admin.getDashboard was removed — there is
+					// no admin.service.js in this repo, so the alias resolved to a
+					// nonexistent action. The admin dashboard reads /admin/analytics/*.
 					"GET /templates": "template.list",
 					"GET /templates/:id": "template.get",
 					"POST /templates": "template.create",
@@ -541,12 +547,16 @@ module.exports = {
 					"POST /check-overlap": "booking.checkOverlap",
 					"GET /": "booking.listBookings",
 					"GET /:id": "booking.getBooking",
+					"GET /:bookingId/transitions": "booking.getTransitions",
 					"PUT /:id/status": "booking.updateStatus",
 					"PUT /:id/cancel": "booking.cancelBooking",
-					"POST /:id/confirm-partner": "booking.confirmPartner",
-					"POST /:id/reject-partner": "booking.rejectPartner",
-					"GET /:id/substitutions/:partnerId": "booking.suggestSubstitution",
-					"POST /:id/accept-substitution": "booking.acceptSubstitution",
+					// URL param MUST be :bookingId — these four actions declare
+					// `bookingId` in their params, so :id would arrive as ctx.params.id
+					// and fail validation with a 422 on every call.
+					"POST /:bookingId/confirm-partner": "booking.confirmPartner",
+					"POST /:bookingId/reject-partner": "booking.rejectPartner",
+					"GET /:bookingId/substitutions/:partnerId": "booking.suggestSubstitution",
+					"POST /:bookingId/accept-substitution": "booking.acceptSubstitution",
 				},
 			},
 
@@ -696,10 +706,14 @@ module.exports = {
 					"GET /health": "superAdmin.getPlatformHealth",
 					"GET /revenue": "superAdmin.getCrossOrgRevenue",
 					"GET /analytics": "superAdmin.getCrossOrgAnalytics",
-					"GET /organizations/:id/config": "organization.getConfig",
-					"PUT /organizations/:id/config": "organization.setConfig",
-					"PATCH /organizations/:id/config": "organization.mergeConfig",
-					"DELETE /organizations/:id/config-key": "organization.deleteConfigKey",
+					// URL param MUST be :organizationId — setConfig/mergeConfig/
+					// deleteConfigKey all declare `organizationId` as required, so
+					// :id would arrive as ctx.params.id and 422 before the handler.
+					// getConfig accepts either, so it renames safely alongside them.
+					"GET /organizations/:organizationId/config": "organization.getConfig",
+					"PUT /organizations/:organizationId/config": "organization.setConfig",
+					"PATCH /organizations/:organizationId/config": "organization.mergeConfig",
+					"DELETE /organizations/:organizationId/config-key": "organization.deleteConfigKey",
 				},
 			},
 
@@ -804,7 +818,9 @@ module.exports = {
 				authentication: true,
 				onBeforeCall(ctx, route, req, res) { ctx.meta.tenantRequired = true; },
 				aliases: {
-					"GET /dashboard": "admin.getDashboard",
+					// NOTE: "GET /dashboard" → admin.getDashboard was removed — there is
+					// no admin.service.js in this repo, so the alias resolved to a
+					// nonexistent action. The admin dashboard reads /admin/analytics/*.
 					"GET /templates": "template.list",
 					"GET /templates/:id": "template.get",
 					"POST /templates": "template.create",
@@ -1269,6 +1285,20 @@ module.exports = {
 					organizationId: decoded.organizationId || null,
 					sessionId: decoded.sessionId || null,
 				};
+
+				// Normalize the tenant onto meta HERE, at the edge, not only in
+				// tenantScope.middleware.
+				//
+				// Moleculer's cacher middleware is an internal middleware, so it wraps
+				// action calls OUTSIDE user middlewares — meaning it computes the cache
+				// key before tenantScope's localAction hook has run. If the tenant were
+				// only normalized there, every cached action's key would see
+				// organizationId as undefined and two different organizations would
+				// share one cache entry. Setting it here happens before any action
+				// middleware, so the key is always tenant-correct.
+				if (decoded.organizationId) {
+					ctx.meta.organizationId = String(decoded.organizationId);
+				}
 
 				return ctx.meta.user;
 			} catch (err) {

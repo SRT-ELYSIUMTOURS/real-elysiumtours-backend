@@ -2,9 +2,20 @@
 
 const { MoleculerClientError } = require("moleculer").Errors;
 const { ERROR_CODES, ATTRACTION_CATEGORIES } = require("../utils/constants");
+const { locationPatchFromGpsCoords } = require("../utils/geo.utils");
+const { publicCache, TTL } = require("../config/cache.config");
+const CacheInvalidation = require("../mixins/cacheInvalidation.mixin");
 
 module.exports = {
 	name: "attraction",
+
+	// Writes must clear the cached catalogue reads below.
+	mixins: [
+		CacheInvalidation({
+			actions: ["create", "update", "toggleActive"],
+			patterns: ["attraction.**"],
+		}),
+	],
 
 	dependencies: ["attraction.model", "destination.model"],
 
@@ -16,6 +27,7 @@ module.exports = {
 		 */
 		listCategories: {
 			auth: undefined,
+			cache: publicCache([], TTL.STATIC),
 			async handler() {
 				return Object.values(ATTRACTION_CATEGORIES).map((value) => ({
 					value,
@@ -55,6 +67,7 @@ module.exports = {
 		 */
 		list: {
 			auth: undefined,
+			cache: publicCache(["destinationId","category","isActive","sort","page","pageSize"]),
 			params: {
 				destinationId: "string|optional",
 				category: "string|optional",
@@ -124,6 +137,7 @@ module.exports = {
 		 */
 		getByDestination: {
 			auth: undefined,
+			cache: publicCache(["destinationId"]),
 			params: {
 				destinationId: "string",
 			},
@@ -143,18 +157,32 @@ module.exports = {
 		create: {
 			auth: "required",
 			role: "admin",
+			// $$strict:"remove" makes this whitelist authoritative — see
+			// hotelPartner.service.js create for the full rationale.
+			//
+			// `category` stays a loose string: ATTRACTION_CATEGORIES is a soft enum
+			// (see utils/constants.js) so legacy free-form values aren't rejected.
+			// The admin picker enforces the vocabulary; the API does not.
+			//
+			// Server-controlled: rating, reviewCount, organizationId, location.
 			params: {
+				$$strict: "remove",
 				name: "string",
 				destinationId: "string",
 				category: "string|optional",
 				entryFee: { type: "number", optional: true, convert: true },
 				description: "string|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				duration: "string|optional",
+				suitableFor: "array|optional",
 				operatingHours: "object|optional",
 				contactInfo: "object|optional",
+				gpsCoords: "object|optional",
+				isActive: { type: "boolean", optional: true, convert: true },
 			},
 			async handler(ctx) {
-				const { destinationId, ...rest } = ctx.params;
+				const { destinationId, gpsCoords, ...rest } = ctx.params;
 
 				// Validate destination exists
 				const destination = await ctx.call(
@@ -174,7 +202,11 @@ module.exports = {
 
 				return ctx.call(
 					"attraction.model.create",
-					{ destinationId, ...rest },
+					{
+						destinationId,
+						...rest,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},
@@ -187,7 +219,10 @@ module.exports = {
 		update: {
 			auth: "required",
 			role: "admin",
+			// See create above. organizationId is not accepted: *.model.update is
+			// not tenant-scoped by tenantScope.middleware.
 			params: {
+				$$strict: "remove",
 				id: "string",
 				name: "string|optional",
 				destinationId: "string|optional",
@@ -195,12 +230,16 @@ module.exports = {
 				entryFee: { type: "number", optional: true, convert: true },
 				description: "string|optional",
 				images: "array|optional",
+				coverImage: "string|optional",
+				duration: "string|optional",
+				suitableFor: "array|optional",
 				isActive: { type: "boolean", optional: true, convert: true },
 				operatingHours: "object|optional",
 				contactInfo: "object|optional",
+				gpsCoords: "object|optional",
 			},
 			async handler(ctx) {
-				const { id, ...updateFields } = ctx.params;
+				const { id, gpsCoords, ...updateFields } = ctx.params;
 
 				const existing = await ctx.call(
 					"attraction.model.get",
@@ -219,7 +258,11 @@ module.exports = {
 
 				return ctx.call(
 					"attraction.model.update",
-					{ id, ...updateFields },
+					{
+						id,
+						...updateFields,
+						...locationPatchFromGpsCoords(gpsCoords),
+					},
 					{ meta: ctx.meta }
 				);
 			},

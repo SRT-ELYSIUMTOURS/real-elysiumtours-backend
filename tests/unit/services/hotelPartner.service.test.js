@@ -226,6 +226,167 @@ describe("HotelPartner Service", () => {
 				type: ERROR_CODES.DESTINATION_NOT_FOUND,
 			});
 		});
+
+		it("should require tier (the admin form previously never sent it)", async () => {
+			modelCallResults["destination.model.get"] = () => mockDestination;
+
+			await expect(
+				broker.call("hotelPartner.create", {
+					name: "No Tier Hotel",
+					destinationId: "dest-1",
+				})
+			).rejects.toMatchObject({ code: 422 });
+		});
+
+		// Every field the admin form collects must actually reach the model. This
+		// is the regression guard for "form accepted it but it never persisted".
+		it("should forward the full admin payload to the model", async () => {
+			modelCallResults["destination.model.get"] = () => mockDestination;
+			let received = null;
+			modelCallResults["hotelPartner.model.create"] = (params) => {
+				received = params;
+				return { _id: "new-hotel", ...params };
+			};
+
+			await broker.call("hotelPartner.create", {
+				name: "Full Payload Hotel",
+				destinationId: "dest-1",
+				tier: "premium",
+				commissionRate: 12,
+				contactInfo: { phone: "0200000000", email: "a@b.com", address: "Accra", contactPerson: "Ama" },
+				inventoryModel: "free_sale",
+				contractStatus: "active",
+				availabilityStatus: "available",
+				amenities: ["pool", "wifi"],
+				images: ["https://img/1.jpg"],
+				coverImage: "https://img/cover.jpg",
+				starRating: 4,
+				shortDescription: "Nice place",
+				priceRange: "premium",
+				packages: [{ id: "p1", title: "Weekend", price: "500", features: ["breakfast"] }],
+				rateData: { standardRate: 400 },
+				closeOutDates: [{ reason: "Renovation" }],
+			});
+
+			expect(received).toMatchObject({
+				name: "Full Payload Hotel",
+				tier: "premium",
+				coverImage: "https://img/cover.jpg",
+				starRating: 4,
+				shortDescription: "Nice place",
+				priceRange: "premium",
+			});
+			expect(received.packages).toHaveLength(1);
+			expect(received.amenities).toEqual(["pool", "wifi"]);
+			expect(received.contactInfo.contactPerson).toBe("Ama");
+		});
+
+		it("should derive GeoJSON location from gpsCoords", async () => {
+			modelCallResults["destination.model.get"] = () => mockDestination;
+			let received = null;
+			modelCallResults["hotelPartner.model.create"] = (params) => {
+				received = params;
+				return { _id: "geo-hotel", ...params };
+			};
+
+			await broker.call("hotelPartner.create", {
+				name: "Geo Hotel",
+				destinationId: "dest-1",
+				tier: "standard",
+				gpsCoords: { lat: 5.6037, lng: -0.187 },
+			});
+
+			// GeoJSON coordinate order is [lng, lat].
+			expect(received.location).toEqual({ type: "Point", coordinates: [-0.187, 5.6037] });
+			// The raw gpsCoords must not leak onto the record.
+			expect(received.gpsCoords).toBeUndefined();
+		});
+
+		// ── SECURITY: mass assignment ────────────────────────────────────────────
+		// Without $$strict:"remove" the handler's `...rest` spread forwarded any
+		// client field straight to Mongoose, letting an admin forge review scores
+		// or move a record into another tenant's organization.
+		it("should strip server-controlled and unknown fields on create", async () => {
+			modelCallResults["destination.model.get"] = () => mockDestination;
+			let received = null;
+			modelCallResults["hotelPartner.model.create"] = (params) => {
+				received = params;
+				return { _id: "new-hotel", ...params };
+			};
+
+			await broker.call("hotelPartner.create", {
+				name: "Sneaky Hotel",
+				destinationId: "dest-1",
+				tier: "budget",
+				rating: 5,
+				reviewCount: 9999,
+				organizationId: "some-other-org",
+				location: { type: "Point", coordinates: [0, 0] },
+				bogusField: "nope",
+			});
+
+			expect(received.rating).toBeUndefined();
+			expect(received.reviewCount).toBeUndefined();
+			expect(received.bogusField).toBeUndefined();
+			// organizationId is stamped by tenantScope.middleware, never by the client.
+			expect(received.organizationId).not.toBe("some-other-org");
+			// Raw location is refused; only gpsCoords-derived values are accepted.
+			expect(received.location).toBeUndefined();
+		});
+	});
+
+	// ========== update: field contract ==========
+
+	describe("update field contract", () => {
+		it("should strip server-controlled and unknown fields on update", async () => {
+			modelCallResults["hotelPartner.model.get"] = () => mockHotel;
+			let received = null;
+			modelCallResults["hotelPartner.model.update"] = (params) => {
+				received = params;
+				return { ...mockHotel, ...params };
+			};
+
+			await broker.call("hotelPartner.update", {
+				id: "hotel-1",
+				name: "Renamed Hotel",
+				rating: 5,
+				reviewCount: 4242,
+				organizationId: "some-other-org",
+				bogusField: "nope",
+			});
+
+			expect(received.name).toBe("Renamed Hotel");
+			expect(received.rating).toBeUndefined();
+			expect(received.reviewCount).toBeUndefined();
+			expect(received.bogusField).toBeUndefined();
+			// .model.update is NOT tenant-scoped, so accepting organizationId here
+			// would allow cross-tenant reassignment.
+			expect(received.organizationId).toBeUndefined();
+		});
+
+		it("should persist the previously-droppable display fields on update", async () => {
+			modelCallResults["hotelPartner.model.get"] = () => mockHotel;
+			let received = null;
+			modelCallResults["hotelPartner.model.update"] = (params) => {
+				received = params;
+				return { ...mockHotel, ...params };
+			};
+
+			await broker.call("hotelPartner.update", {
+				id: "hotel-1",
+				coverImage: "https://img/new.jpg",
+				starRating: 5,
+				shortDescription: "Updated",
+				priceRange: "luxury",
+			});
+
+			expect(received).toMatchObject({
+				coverImage: "https://img/new.jpg",
+				starRating: 5,
+				shortDescription: "Updated",
+				priceRange: "luxury",
+			});
+		});
 	});
 
 	// ========== setCommission ==========

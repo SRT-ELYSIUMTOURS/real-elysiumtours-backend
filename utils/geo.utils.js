@@ -38,4 +38,31 @@ function validateCoordinates(lat, lng) {
 function kmToMeters(km) { return km * 1000; }
 function metersToKm(m) { return m / 1000; }
 
-module.exports = { haversineDistance, toGeoJSON, fromGeoJSON, validateCoordinates, kmToMeters, metersToKm };
+/**
+ * Derive the GeoJSON `location` field from an admin-supplied { lat, lng } pair.
+ *
+ * Admin forms collect gpsCoords; the raw `location` field is never accepted from
+ * a client, so this is the only path that populates the 2dsphere index. Without
+ * it, admin-created records are invisible to every findNearby query.
+ *
+ * @param {{lat:number, lng:number}} [gpsCoords]
+ * @returns {{location: object}|{}} A patch to merge into the record, or {} when
+ *   coords are absent/invalid (leaves any existing location untouched).
+ */
+function locationPatchFromGpsCoords(gpsCoords) {
+	if (!gpsCoords) return {};
+	const lat = Number(gpsCoords.lat);
+	const lng = Number(gpsCoords.lng);
+	if (!validateCoordinates(lat, lng)) return {};
+	return { location: toGeoJSON(lat, lng) };
+}
+
+module.exports = {
+	haversineDistance,
+	toGeoJSON,
+	fromGeoJSON,
+	validateCoordinates,
+	kmToMeters,
+	metersToKm,
+	locationPatchFromGpsCoords,
+};

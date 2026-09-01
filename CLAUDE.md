@@ -249,25 +249,33 @@ LOG_LEVEL=info
 
 ---
 
-## Caching Policy — DISABLED During Development
+## Caching Policy — ENABLED for public catalogue reads only
 
-Caching (`cacher` in `moleculer.config.js`) is **explicitly set to `null`**. Do NOT enable it until development is complete.
+Caching was previously disabled outright. It is now **on**, narrowly scoped, because MongoDB Atlas is off-platform: every uncached read is billed egress, and with no cache the service re-queried the entire catalogue on every page view and every uptime ping (~5 GB/month, most of it idle).
 
-**Why:** Cache poisoning — stale or incorrect data in request/response cycles causes hard-to-debug issues. Moleculer's built-in caching can serve outdated records after writes, especially across services. This is a known footgun in microservice architectures.
+The original concern — cache poisoning — remains valid and is what the scoping and tests below exist to prevent.
 
-**Rules:**
-1. Never set `cacher` to anything other than `null` during development
-2. Never add `cache: true` or `cache: { ... }` to any action definition
-3. Never use `ctx.cachedResult` or `this.broker.cacher` in service code
-4. When development is complete, caching will be enabled and tested as a dedicated task with:
-   - Redis-backed cacher only (not in-memory)
-   - Cache invalidation on every write action (create/update/delete)
-   - Per-action cache TTLs tuned to data volatility
-   - Full regression testing to verify no stale data is served
+**Source of truth:** `config/cache.config.js` (what may be cached, TTLs, key composition, never-cache list) and `mixins/cacheInvalidation.mixin.js` (invalidation). Both are enforced by `tests/unit/services/cachePolicy.test.js`.
+
+### Memory cacher, NOT Redis
+`cacher` is Moleculer's **Memory** type. A managed Redis is also off-platform, so a Redis cacher would swap Atlas egress for Redis egress and save nothing; an in-process cache uses no network at all. It also avoids cross-node invalidation entirely.
+
+This is only coherent because the service runs as a **single process**. If `MULTI_NODE` is enabled, each instance holds its own copy and a write on one will not invalidate the others — switch to a shared cacher (accepting its egress cost) before scaling out.
+
+### Rules
+1. Cache **only** public, non-user-specific catalogue reads. Never cache anything that reads `ctx.meta.user`, live availability (`remainingCapacity` — stale seat counts mean overselling), payment/booking status, or any `auth: "required"` / role-gated action. Admins must always see their own edit immediately.
+2. **Every cached action MUST build its key with `publicCache()`**, never a hand-written `cache: { ... }`. That helper prepends `TENANT_KEYS`, which is mandatory: Moleculer builds cache keys from action *params only*, while `tenantScope.middleware` silently scopes queries by organization and super_admins bypass that scoping. Params-only keys serve one organization's data to another — a leak, not staleness.
+3. **Cache keys must include every param that changes the response.** A missing filter param means two different requests share one entry. The policy test enforces this against each action's declared `params`.
+4. **Every service with cached reads must install `CacheInvalidation`** listing all of its write actions. Do not hand-roll `broker.cacher.clean()` calls in handlers — the test asserts every write-shaped action is hooked, which is what stops a newly added write from silently serving stale data.
+5. Invalidation patterns must include **cross-resource dependencies**. `tourPackage.list` embeds destination data, so destination writes clear `tourPackage.**` too.
+6. `DISABLE_CACHE=true` turns caching off entirely at runtime — the kill switch if stale data is ever suspected in production.
+
+### Known trap (already fixed — do not reintroduce)
+Moleculer's cacher is an **internal** middleware, so it wraps action calls *outside* user middlewares and computes the cache key **before** `tenantScope.middleware` runs. The tenant is therefore normalized onto `ctx.meta.organizationId` inside `api.service.authenticate()`, at the edge. Removing that leaves every cached key seeing `organizationId: undefined`, and two organizations share one entry. Regression test: "does NOT leak across orgs when only meta.user.organizationId is set".
 
 ## Do NOT List
 - No ESM (`import`/`export`) — CommonJS throughout
-- No caching (`cache: true` on actions, `cacher` in config) until post-development
+- No caching outside the scope defined in **Caching Policy** above — never on an authed/role-gated action, never with a hand-written `cache: { ... }` instead of `publicCache()`, and never without `CacheInvalidation` on the service's writes
 - No ORMs other than Mongoose
 - No global error catching in services — let Moleculer's error handler manage it
 - No `broker.call` inside model service actions

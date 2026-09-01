@@ -549,6 +549,55 @@ module.exports = {
 		/**
 		 * Update booking status (staff only).
 		 */
+		/**
+		 * Valid next statuses for a booking, derived from the diagram 9 state
+		 * machine. Drives the admin status controls so the UI never hardcodes
+		 * the transition map.
+		 *
+		 * Cancellation targets are flagged so the UI routes them through
+		 * cancelBooking (which sets cancellationReason/cancelledAt and emits
+		 * booking.cancelled for capacity release) instead of updateStatus.
+		 */
+		getTransitions: {
+			auth: "required",
+			role: "staff",
+			params: {
+				bookingId: "string",
+			},
+			async handler(ctx) {
+				const { bookingId } = ctx.params;
+
+				const booking = await ctx.call(
+					"booking.model.get",
+					{ id: bookingId },
+					{ meta: ctx.meta }
+				).catch(() => null);
+
+				if (!booking) {
+					throw new MoleculerClientError(
+						"Booking not found.",
+						404,
+						ERROR_CODES.BOOKING_NOT_FOUND,
+						{ bookingId }
+					);
+				}
+
+				const allowed = this.getBookingTransitions(booking.status);
+
+				return {
+					bookingId,
+					currentStatus: booking.status,
+					terminal: allowed.length === 0,
+					allowed: allowed.map((status) => ({
+						status,
+						requiresCancelAction:
+							status === BOOKING_STATUSES.CANCELLED ||
+							status === BOOKING_STATUSES.CANCELLED_WITH_REFUND,
+					})),
+				};
+			},
+		},
+
 		updateStatus: {
 			auth: "required",
 			role: "staff",
